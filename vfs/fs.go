@@ -16,7 +16,6 @@ import (
 
 const DISK_SIZE = 700 * fat32.MB
 const SECTOR_SIZE = 512
-const START = 2048
 
 // Filesystem represents a virtual FAT32 filesystem containing WAV files
 // corresponding to the tracks on the CD.
@@ -32,7 +31,7 @@ type Filesystem struct {
 func sanitizeName(name string) string {
 	// https://en.wikipedia.org/wiki/8.3_filename
 	newName := make([]rune, 0, max(len(name), 8))
-	for _, r := range []rune(strings.ToUpper(name)) {
+	for _, r := range strings.ToUpper(name) {
 		if len(newName) == 8 {
 			break
 		}
@@ -41,6 +40,10 @@ func sanitizeName(name string) string {
 		}
 	}
 	return string(newName)
+}
+
+func trackSizeBytes(t *cd.Track) int64 {
+	return int64(t.LengthFrames * 6 * 2) // 6 samples per channel per frame, 16 bits per sample
 }
 
 // Create a new filesystem instance. Data is backed by a temporary file.
@@ -65,11 +68,8 @@ func Create() (*Filesystem, error) {
 			{
 				Bootable: false,
 				Type:     mbr.Linux,
-				// STOPSHIP
-				Start: 0,
-				Size:  uint32(10 * fat32.MB),
-				// Start:    START,
-				// Size:     uint32(DISK_SIZE) / SECTOR_SIZE,
+				Start:    0,
+				Size:     uint32(DISK_SIZE) / SECTOR_SIZE,
 			},
 		},
 	}
@@ -141,12 +141,12 @@ func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
 		// zero bytes. This is proabably an implementation quirk though
 		// so there's a test for it in case the behavior changes.
 
-		// _, err = io.CopyN(file, zero, track.LengthBytes)
+		// _, err = io.CopyN(file, zero, trackSizeBytes(&track))
 		// if err != nil {
 		// 	return fmt.Errorf("write null %v: %w", fname, err)
 		// }
 
-		_, err = file.Seek(track.LengthBytes, io.SeekStart)
+		_, err = file.Seek(trackSizeBytes(&track), io.SeekStart)
 		if err != nil {
 			return err
 		}

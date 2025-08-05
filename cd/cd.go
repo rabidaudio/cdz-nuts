@@ -1,8 +1,8 @@
 package cd
 
 type Track struct {
-	Filename    string
-	LengthBytes int64
+	Filename     string
+	LengthFrames uint
 }
 
 type CD struct {

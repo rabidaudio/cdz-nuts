@@ -25,10 +25,11 @@ func TestCreate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func guessLengthBytes(min, sec int) int64 {
-	// seconds times 44.1KHz times 2 bytes per sample times 2 channels
-	// return int64(((min * 60) + sec) * 44100 * 2 * 2)
-	return 1337 // STOPSHIP
+func secondsToFrames(min, sec int) uint {
+	// seconds times 44.1KHz = samples
+	// 6 samples * 2 channels in each 33 byte frame (after CIC)
+	samples := ((min * 60) + sec) * 44100
+	return uint(samples / 6)
 }
 
 func copyFile(srcpath, dstpath string) (err error) {
@@ -58,41 +59,45 @@ func TestLoadCD(t *testing.T) {
 		Name: "R.E.M. - Chronic Town",
 		Tracks: []cd.Track{
 			{
-				Filename:    "Wolves, Lower",
-				LengthBytes: guessLengthBytes(4, 15),
+				Filename:     "Wolves, Lower",
+				LengthFrames: secondsToFrames(4, 15),
 			},
 			{
-				Filename:    "Gardening at Night",
-				LengthBytes: guessLengthBytes(3, 30),
+				Filename:     "Gardening at Night",
+				LengthFrames: secondsToFrames(3, 30),
 			},
 			{
-				Filename:    "Carnival of Sorts (Box Cars)",
-				LengthBytes: guessLengthBytes(3, 52),
+				Filename:     "Carnival of Sorts (Box Cars)",
+				LengthFrames: secondsToFrames(3, 52),
 			},
 			{
-				Filename:    "1,000,000",
-				LengthBytes: guessLengthBytes(3, 6),
+				Filename:     "1,000,000",
+				LengthFrames: secondsToFrames(3, 6),
 			},
 			{
-				Filename:    "Stumble",
-				LengthBytes: guessLengthBytes(5, 40),
+				Filename:     "Stumble",
+				LengthFrames: secondsToFrames(5, 40),
 			},
 		},
 	}
 
-	fsys, _ := Create()
-	err := fsys.LoadCD(cd)
+	fsys, err := Create()
+	assert.NoError(t, err)
+	defer fsys.Close()
+
+	err = fsys.LoadCD(cd)
 	assert.NoError(t, err)
 
 	assert.NoError(t, copyFile(fsys.Path, "/Users/personal/projects/carcd-adapter/testresult.img")) // for inspection
+	// TODO test files
 }
 
 func TestFileSize(t *testing.T) {
 	cd := cd.CD{
 		Tracks: []cd.Track{
 			{
-				Filename:    "Track 1",
-				LengthBytes: 1337,
+				Filename:     "Track 1",
+				LengthFrames: 1337,
 			},
 		},
 	}
@@ -115,7 +120,7 @@ func TestFileSize(t *testing.T) {
 	for _, fi := range fileInfo {
 		if fi.Name() == "TRACK00.WAV" {
 			found = true
-			assert.Equal(t, cd.Tracks[0].LengthBytes, fi.Size())
+			assert.Equal(t, int64(1337*6*2), fi.Size())
 		}
 	}
 	assert.True(t, found)
