@@ -20,7 +20,7 @@ const SECTOR_SIZE = 512
 // Filesystem represents a virtual FAT32 filesystem containing WAV files
 // corresponding to the tracks on the CD.
 type Filesystem struct {
-	filesystem.FileSystem
+	fs      filesystem.FileSystem
 	Path    string
 	cd      *cd.CD
 	closefn func() error
@@ -30,7 +30,7 @@ type Filesystem struct {
 // by uppercasing, limiting to ASCII letters, and triming to 8 chars
 func sanitizeName(name string) string {
 	// https://en.wikipedia.org/wiki/8.3_filename
-	newName := make([]rune, 0, max(len(name), 8))
+	newName := make([]rune, 0, 8)
 	for _, r := range strings.ToUpper(name) {
 		if len(newName) == 8 {
 			break
@@ -43,6 +43,7 @@ func sanitizeName(name string) string {
 }
 
 func trackSizeBytes(t *cd.Track) int64 {
+	// TODO: include prefix, track predelay
 	return int64(t.LengthFrames * 6 * 2) // 6 samples per channel per frame, 16 bits per sample
 }
 
@@ -90,6 +91,10 @@ func Create() (*Filesystem, error) {
 	}
 
 	closefn := func() (err error) {
+		err = fatfs.Close()
+		if err != nil {
+			return err
+		}
 		err = os.Remove(dskimg)
 		if err != nil {
 			return err
@@ -102,9 +107,9 @@ func Create() (*Filesystem, error) {
 	}
 
 	f := Filesystem{
-		Path:       dskimg,
-		FileSystem: fatfs,
-		closefn:    closefn,
+		Path:    dskimg,
+		fs:      fatfs,
+		closefn: closefn,
 	}
 
 	return &f, nil
@@ -112,10 +117,13 @@ func Create() (*Filesystem, error) {
 
 // Create virtual files based on the CD configuration
 func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
-	sDirName := sanitizeName(cd.Name)
+	if f.cd != nil {
+		return fmt.Errorf("current CD not ejected")
+	}
+
+	sDirName := dirName(cd)
 	if sDirName != "" {
-		sDirName = "/" + sDirName
-		err = f.Mkdir(sDirName)
+		err = f.fs.Mkdir(sDirName)
 		if err != nil {
 			return err
 		}
@@ -130,8 +138,8 @@ func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
 
 	for i, track := range cd.Tracks {
 		// TODO: try reading ID3 data for generating track names
-		fname := fmt.Sprintf("%v/TRACK%02d.WAV", sDirName, i)
-		file, err := f.OpenFile(fname, os.O_CREATE|os.O_RDWR)
+		fname, _ := trackPath(cd, i)
+		file, err := f.fs.OpenFile(fname, os.O_CREATE|os.O_RDWR)
 		if err != nil {
 			return fmt.Errorf("create track %v: %w", fname, err)
 		}
@@ -159,9 +167,79 @@ func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
 	return nil
 }
 
+func dirName(cd cd.CD) string {
+	sDirName := sanitizeName(cd.Name)
+	if sDirName != "" {
+		sDirName = "/" + sDirName
+	}
+	return sDirName
+}
+
+func trackPath(cd cd.CD, i int) (string, bool) {
+	if i < 0 || i >= len(cd.Tracks) {
+		return "", false
+	}
+	// t := cd.Tracks[i]
+	return fmt.Sprintf("%v/TRACK%02d.WAV", dirName(cd), i), true
+}
+
+type TrackRange struct {
+	Track      cd.Track
+	DiskRanges []fat32.DiskRange
+}
+
+// Get the block bounds over which the track files are placed
+func (f *Filesystem) TrackRanges() ([]TrackRange, error) {
+	if f.cd == nil {
+		return nil, fmt.Errorf("no CD loaded")
+	}
+	trackRanges := make([]TrackRange, len(f.cd.Tracks))
+
+	for i, track := range f.cd.Tracks {
+		path, ok := trackPath(*f.cd, i)
+		if !ok {
+			return nil, fmt.Errorf("invalid track index")
+		}
+
+		tf, err := f.fs.OpenFile(path, os.O_RDONLY)
+		if err != nil {
+			return nil, err
+		}
+		defer tf.Close()
+
+		fattf, ok := tf.(*fat32.File)
+		if !ok {
+			return nil, fmt.Errorf("not fat32 file")
+		}
+		diskRange, err := fattf.GetDiskRanges()
+		if err != nil {
+			return nil, err
+		}
+		trackRanges[i] = TrackRange{Track: track, DiskRanges: diskRange}
+	}
+
+	return trackRanges, nil
+}
+
 // Delete all files from the filesystem
-func (f *Filesystem) Eject() {
-	// TODO
+func (f *Filesystem) Eject() error {
+	if f.cd == nil {
+		return nil
+	}
+	for i := range f.cd.Tracks {
+		// TODO: try reading ID3 data for generating track names
+		fname, _ := trackPath(*f.cd, i)
+		err := f.fs.Remove(fname)
+		if err != nil {
+			return err
+		}
+	}
+	err := f.fs.Remove(dirName(*f.cd))
+	if err != nil {
+		return err
+	}
+	f.cd = nil
+	return nil
 }
 
 func (f *Filesystem) Close() error {

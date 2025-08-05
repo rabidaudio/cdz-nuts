@@ -54,42 +54,39 @@ func copyFile(srcpath, dstpath string) (err error) {
 	return err
 }
 
-func TestLoadCD(t *testing.T) {
-	cd := cd.CD{
-		Name: "R.E.M. - Chronic Town",
-		Tracks: []cd.Track{
-			{
-				Filename:     "Wolves, Lower",
-				LengthFrames: secondsToFrames(4, 15),
-			},
-			{
-				Filename:     "Gardening at Night",
-				LengthFrames: secondsToFrames(3, 30),
-			},
-			{
-				Filename:     "Carnival of Sorts (Box Cars)",
-				LengthFrames: secondsToFrames(3, 52),
-			},
-			{
-				Filename:     "1,000,000",
-				LengthFrames: secondsToFrames(3, 6),
-			},
-			{
-				Filename:     "Stumble",
-				LengthFrames: secondsToFrames(5, 40),
-			},
+var CHRONIC_TOWN = cd.CD{
+	Name: "R.E.M. - Chronic Town",
+	Tracks: []cd.Track{
+		{
+			Filename:     "Wolves, Lower",
+			LengthFrames: secondsToFrames(4, 15),
 		},
-	}
+		{
+			Filename:     "Gardening at Night",
+			LengthFrames: secondsToFrames(3, 30),
+		},
+		{
+			Filename:     "Carnival of Sorts (Box Cars)",
+			LengthFrames: secondsToFrames(3, 52),
+		},
+		{
+			Filename:     "1,000,000",
+			LengthFrames: secondsToFrames(3, 6),
+		},
+		{
+			Filename:     "Stumble",
+			LengthFrames: secondsToFrames(5, 40),
+		},
+	},
+}
 
+func TestLoadCD(t *testing.T) {
 	fsys, err := Create()
 	assert.NoError(t, err)
 	defer fsys.Close()
 
-	err = fsys.LoadCD(cd)
+	err = fsys.LoadCD(CHRONIC_TOWN)
 	assert.NoError(t, err)
-
-	assert.NoError(t, copyFile(fsys.Path, "/Users/personal/projects/carcd-adapter/testresult.img")) // for inspection
-	// TODO test files
 }
 
 func TestFileSize(t *testing.T) {
@@ -109,11 +106,11 @@ func TestFileSize(t *testing.T) {
 	err = fsys.LoadCD(cd)
 	assert.NoError(t, err)
 
-	t0, err := fsys.OpenFile("/TRACK00.WAV", os.O_RDONLY)
+	t0, err := fsys.fs.OpenFile("/TRACK00.WAV", os.O_RDONLY)
 	assert.NoError(t, err)
 	defer t0.Close()
 
-	fileInfo, err := fsys.ReadDir("/")
+	fileInfo, err := fsys.fs.ReadDir("/")
 	assert.NoError(t, err)
 
 	found := false
@@ -124,4 +121,33 @@ func TestFileSize(t *testing.T) {
 		}
 	}
 	assert.True(t, found)
+}
+
+func TestTrackRanges(t *testing.T) {
+	fsys, err := Create()
+	assert.NoError(t, err)
+	defer fsys.Close()
+
+	err = fsys.LoadCD(CHRONIC_TOWN)
+	assert.NoError(t, err)
+
+	trackRanges, err := fsys.TrackRanges()
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(CHRONIC_TOWN.Tracks), len(trackRanges))
+
+	for i, tr := range CHRONIC_TOWN.Tracks {
+		// assert.Equal(t, i, trackRanges[i].Index)
+		assert.Equal(t, tr, trackRanges[i].Track)
+
+		totalSize := 0
+		for _, r := range trackRanges[i].DiskRanges {
+			// fmt.Printf("%v\t%v\t%v\n", i, r.Offset, r.Length)
+			totalSize += int(r.Length)
+		}
+		// sum of bytes should be divisible by sector size
+		assert.Equal(t, 0, totalSize%SECTOR_SIZE)
+		// total sector size should be longer than file size
+		assert.GreaterOrEqual(t, totalSize, int(tr.LengthFrames*6*2))
+	}
 }
