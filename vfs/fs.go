@@ -14,7 +14,7 @@ import (
 	"github.com/rabidaudio/carcd-adapter/cd"
 )
 
-const DISK_SIZE = 700 * fat32.MB
+const DISK_SIZE = 50 * fat32.MB // STOPSHIP // 700 * fat32.MB
 const SECTOR_SIZE = 512
 
 // Filesystem represents a virtual FAT32 filesystem containing WAV files
@@ -43,8 +43,9 @@ func sanitizeName(name string) string {
 }
 
 func trackSizeBytes(t *cd.Track) int64 {
-	// TODO: include prefix, track predelay
-	return int64(t.LengthFrames * 6 * 2) // 6 samples per channel per frame, 16 bits per sample
+	// TODO: include metadata, artifical track predelay
+	// 6 samples per channel per frame, 16 bits per sample plus 44 header
+	return int64(t.LengthFrames*6*2) + 44
 }
 
 // Create a new filesystem instance. Data is backed by a temporary file.
@@ -184,7 +185,7 @@ func trackPath(cd cd.CD, i int) (string, bool) {
 }
 
 type TrackRange struct {
-	Track      cd.Track
+	FileInfo   os.FileInfo
 	DiskRanges []fat32.DiskRange
 }
 
@@ -193,9 +194,15 @@ func (f *Filesystem) TrackRanges() ([]TrackRange, error) {
 	if f.cd == nil {
 		return nil, fmt.Errorf("no CD loaded")
 	}
+
+	fileInfo, err := f.fs.ReadDir(dirName(*f.cd))
+	if err != nil {
+		return nil, err
+	}
+
 	trackRanges := make([]TrackRange, len(f.cd.Tracks))
 
-	for i, track := range f.cd.Tracks {
+	for i := range f.cd.Tracks {
 		path, ok := trackPath(*f.cd, i)
 		if !ok {
 			return nil, fmt.Errorf("invalid track index")
@@ -215,7 +222,16 @@ func (f *Filesystem) TrackRanges() ([]TrackRange, error) {
 		if err != nil {
 			return nil, err
 		}
-		trackRanges[i] = TrackRange{Track: track, DiskRanges: diskRange}
+		trackRanges[i] = TrackRange{DiskRanges: diskRange}
+
+		for _, fi := range fileInfo {
+			if fi.IsDir() {
+				continue
+			}
+			if name, ok := trackPath(*f.cd, i); ok && strings.HasSuffix(name, fi.Name()) {
+				trackRanges[i].FileInfo = fi
+			}
+		}
 	}
 
 	return trackRanges, nil
@@ -243,5 +259,6 @@ func (f *Filesystem) Eject() error {
 }
 
 func (f *Filesystem) Close() error {
+	f.Eject()
 	return f.closefn()
 }
