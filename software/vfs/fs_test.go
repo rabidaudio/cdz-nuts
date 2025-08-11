@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rabidaudio/carcd-adapter/cd"
+	"github.com/rabidaudio/cdz-nuts/cd"
 	"github.com/stretchr/testify/assert"
 )
 

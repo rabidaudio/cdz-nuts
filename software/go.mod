@@ -1,4 +1,4 @@
-module github.com/rabidaudio/carcd-adapter
+module github.com/rabidaudio/cdz-nuts
 
 go 1.23.0
 

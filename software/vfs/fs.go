@@ -11,7 +11,7 @@ import (
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/diskfs/go-diskfs/filesystem/fat32"
 	"github.com/diskfs/go-diskfs/partition/mbr"
-	"github.com/rabidaudio/carcd-adapter/cd"
+	"github.com/rabidaudio/cdz-nuts/cd"
 )
 
 const DISK_SIZE = 50 * fat32.MB // STOPSHIP // 700 * fat32.MB
