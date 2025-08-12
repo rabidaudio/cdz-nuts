@@ -95,7 +95,7 @@ void _sysctrl_init_sources(void)
 	/* Enable OSC32K anyway since GCLK configuration may need it to sync */
 	hri_sysctrl_set_OSC32K_ENABLE_bit(hw);
 #endif
-
+	hri_sysctrl_set_OSC32K_ENABLE_bit(hw);
 #if CONF_OSCULP32K_CONFIG == 1
 	calib = hri_sysctrl_read_OSCULP32K_CALIB_bf(hw);
 

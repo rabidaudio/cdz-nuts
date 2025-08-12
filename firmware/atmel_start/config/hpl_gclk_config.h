@@ -67,7 +67,7 @@
 // <i> This defines the clock source for generic clock generator 0
 // <id> gclk_gen_0_oscillator
 #ifndef CONF_GCLK_GEN_0_SRC
-#define CONF_GCLK_GEN_0_SRC GCLK_GENCTRL_SRC_DPLL96M
+#define CONF_GCLK_GEN_0_SRC GCLK_GENCTRL_SRC_DFLL48M
 #endif
 // </h>
 

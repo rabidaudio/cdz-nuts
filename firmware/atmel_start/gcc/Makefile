@@ -27,6 +27,10 @@ else
 	endif
 endif
 
+include ../tinyusb/src/tinyusb.mk
+
+TINYUSB_SRC_C += src/portable/microchip/samd/dcd_samd.c
+
 # List the subdirectories for creating object files
 SUB_DIRS +=  \
  \
@@ -47,6 +51,8 @@ thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0 \
 hpl/core
 
+SUB_DIRS += $(sort $(addprefix tinyusb/, $(dir $(TINYUSB_SRC_C))))
+
 # List the object files
 OBJS +=  \
 hal/src/hal_io.o \
@@ -59,7 +65,6 @@ thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/stream_buffer.o \
 hal/utils/src/utils_syscalls.o \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/queue.o \
 hal/src/hal_spi_m_sync.o \
-hpl/usb/hpl_usb.o \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/timers.o \
 hal/src/hal_delay.o \
 hpl/pm/hpl_pm.o \
@@ -73,12 +78,12 @@ hal/src/hal_usart_sync.o \
 hpl/gclk/hpl_gclk.o \
 hal/src/hal_init.o \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0/rtos_port.o \
-hal/src/hal_usb_device.o \
 rtos_start.o \
 samd21a/gcc/system_samd21.o \
 driver_init.o \
 hpl/sercom/hpl_sercom.o \
 ../main.o \
+../msc_disk.o \
 hal/src/hal_gpio.o \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/portable/GCC/ARM_CM0/port.o \
 hal/utils/src/utils_event.o \
@@ -86,6 +91,10 @@ hal/src/hal_sleep.o \
 atmel_start.o \
 hal/src/hal_atomic.o \
 thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/tasks.o
+
+# Tinyusb stuff
+OBJS += $(patsubst %.c, tinyusb/%.o, $(TINYUSB_SRC_C))
+OBJS += ../usb_descriptors.o
 
 OBJS_AS_ARGS +=  \
 "hal/src/hal_io.o" \
@@ -98,7 +107,6 @@ OBJS_AS_ARGS +=  \
 "hal/utils/src/utils_syscalls.o" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/queue.o" \
 "hal/src/hal_spi_m_sync.o" \
-"hpl/usb/hpl_usb.o" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/timers.o" \
 "hal/src/hal_delay.o" \
 "hpl/pm/hpl_pm.o" \
@@ -112,12 +120,12 @@ OBJS_AS_ARGS +=  \
 "hpl/gclk/hpl_gclk.o" \
 "hal/src/hal_init.o" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/rtos_port.o" \
-"hal/src/hal_usb_device.o" \
 "rtos_start.o" \
 "samd21a/gcc/system_samd21.o" \
 "driver_init.o" \
 "hpl/sercom/hpl_sercom.o" \
 "../main.o" \
+"../msc_disk.o" \
 "hal/src/hal_gpio.o" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/portable/GCC/ARM_CM0/port.o" \
 "hal/utils/src/utils_event.o" \
@@ -125,6 +133,9 @@ OBJS_AS_ARGS +=  \
 "atmel_start.o" \
 "hal/src/hal_atomic.o" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/tasks.o"
+
+OBJS_AS_ARGS += $(patsubst %.c, "tinyusb/%.o", $(TINYUSB_SRC_C))
+OBJS_AS_ARGS += "../usb_descriptors.o"
 
 # List the directories containing header files
 DIR_INCLUDES +=  \
@@ -153,6 +164,8 @@ DIR_INCLUDES +=  \
 -I"../CMSIS/Core/Include" \
 -I"../samd21a/include"
 
+DIR_INCLUDES += -I"../tinyusb/src"
+DIR_INCLUDES += -I"../../"
 # List the dependency files
 DEPS := $(OBJS:%.o=%.d)
 
@@ -164,8 +177,8 @@ DEPS_AS_ARGS +=  \
 "hal/src/hal_io.d" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/portable/MemMang/heap_1.d" \
 "hal/utils/src/utils_syscalls.d" \
-"hpl/usb/hpl_usb.d" \
 "../main.d" \
+"../msc_disk.d" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/timers.d" \
 "hal/src/hal_spi_m_sync.d" \
 "hpl/core/hpl_core_m0plus_base.d" \
@@ -177,7 +190,6 @@ DEPS_AS_ARGS +=  \
 "hpl/core/hpl_init.d" \
 "hpl/sysctrl/hpl_sysctrl.d" \
 "hpl/gclk/hpl_gclk.d" \
-"hal/src/hal_usb_device.d" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/rtos_port.d" \
 "hal/src/hal_init.d" \
 "hal/src/hal_usart_sync.d" \
@@ -194,6 +206,9 @@ DEPS_AS_ARGS +=  \
 "hpl/pm/hpl_pm.d" \
 "thirdparty/RTOS/freertos/FreeRTOSV10.0.0/Source/tasks.d" \
 "atmel_start.d"
+
+DEPS_AS_ARGS+= $(patsubst %.c, "tinyusb/%.d", $(TINYUSB_SRC_C))
+DEPS_AS_ARGS+= "usb_descriptors.d"
 
 OUTPUT_FILE_NAME :=firmnutz
 QUOTE := "
@@ -238,7 +253,7 @@ $(OUTPUT_FILE_PATH): $(OBJS)
 %.o: %.c
 	@echo Building file: $<
 	@echo ARM/GNU C Compiler
-	$(QUOTE)arm-none-eabi-gcc$(QUOTE) -x c -mthumb -DDEBUG -Os -ffunction-sections -mlong-calls -g3 -Wall -c -std=gnu99 \
+	$(QUOTE)arm-none-eabi-gcc$(QUOTE) -x c -mthumb -DDEBUG -O0 -ffunction-sections -mlong-calls -g3 -Wall -c -std=gnu99 \
 -D__SAMD21G18A__ -mcpu=cortex-m0plus  \
 $(DIR_INCLUDES) \
 -MD -MP -MF "$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -MT"$(@:%.o=%.o)"  -o "$@" "$<"
