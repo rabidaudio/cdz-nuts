@@ -1,34 +1,21 @@
 package main
 
 import (
-	"bytes"
-	"io"
-	"io/fs"
-	"os"
-	"syscall"
+	"fmt"
+
+	"github.com/rabidaudio/cdz-nuts/spi"
 )
 
 func main() {
-	drv, err := os.OpenFile("/dev/disk8", os.O_RDONLY|syscall.O_NONBLOCK, fs.ModePerm)
+	s, err := spi.Open()
 	if err != nil {
 		panic(err)
 	}
+	defer s.Close()
 
-	i := 0
-	buf := new(bytes.Buffer)
-	for i < 0x1000 {
-		n, err := drv.Read(buf.Bytes())
-		i += n
-		if err != nil {
-			panic(err)
-		}
-	}
-	out, err := os.Create("dump.bin")
+	dr, err := s.Query()
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("query: %w", err))
 	}
-	_, err = io.Copy(out, buf)
-	if err != nil {
-		panic(err)
-	}
+	fmt.Printf("request: %v\n", dr)
 }
