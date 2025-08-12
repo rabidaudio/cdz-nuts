@@ -6,6 +6,7 @@ toolchain go1.23.11
 
 require (
 	github.com/diskfs/go-diskfs v1.6.0
+	github.com/stianeikeland/go-rpio/v4 v4.6.0
 	github.com/stretchr/testify v1.10.0
 )
 
