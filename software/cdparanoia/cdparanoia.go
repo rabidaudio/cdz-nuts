@@ -7,94 +7,20 @@ package cdparanoia
 // #include <stdlib.h>
 // #include <cdda_interface.h>
 // #include <cdda_paranoia.h>
+//
+// /* Calling C function pointers from Go is not supported,
+//    but this is a workaround. See https://pkg.go.dev/cmd/cgo */
+// typedef int (*read_toc_fn) (struct cdrom_drive *d);
+// int bridge_read_toc(read_toc_fn f, struct cdrom_drive *d) {
+//   return f(d);
+// }
 import "C"
 import (
-	"fmt"
-	"math"
 	"unsafe"
 )
 
+// Set this to true to enable debugging
 var EnableLogs = false
-
-var ErrNoDrive = fmt.Errorf("cdparanoia: no cd drive detected")
-
-type ParanoiaError int
-
-const (
-	ErrSetReadAudioMode      ParanoiaError = 1
-	ErrReadTOCLeadOut        ParanoiaError = 2
-	ErrIllegalNumberOfTracks ParanoiaError = 3
-	ErrReadTOCHeader         ParanoiaError = 4
-	ErrReadTOCEntry          ParanoiaError = 5
-	ErrNoData                ParanoiaError = 6
-	ErrUnknownReadError      ParanoiaError = 7
-	ErrUnableToIdentifyModel ParanoiaError = 8
-	ErrIllegalTOC            ParanoiaError = 9
-
-	ErrInterfaceNotSupported ParanoiaError = 100
-	ErrPermissionDenied      ParanoiaError = 102
-
-	ErrKernelMemory ParanoiaError = 300
-
-	ErrNotOpen               ParanoiaError = 400
-	ErrInvalidTrackNumber    ParanoiaError = 401
-	ErrNoAudioTracks         ParanoiaError = 403
-	ErrNoMediumPresent       ParanoiaError = 404
-	ErrOperationNotSupported ParanoiaError = 405
-)
-
-func (pe ParanoiaError) name() string {
-	switch pe {
-	case ErrSetReadAudioMode:
-		return "unable to set CDROM to read audio mode"
-	case ErrReadTOCLeadOut:
-		return "unable to read table of contents lead-out"
-	case ErrIllegalNumberOfTracks:
-		return "cdrom reporting illegal number of tracks"
-	case ErrReadTOCHeader:
-		return "unable to read table of contents header"
-	case ErrReadTOCEntry:
-		return "unable to read table of contents entry"
-	case ErrNoData:
-		return "could not read any data from drive"
-	case ErrUnknownReadError:
-		return "unknown, unrecoverable error reading data"
-	case ErrUnableToIdentifyModel:
-		return "unable to identify CDROM model"
-	case ErrIllegalTOC:
-		return "cdrom reporting illegal table of contents"
-
-	case ErrInterfaceNotSupported:
-		return "interface not supported"
-	case ErrPermissionDenied:
-		return "permision denied on cdrom (ioctl) device"
-
-	case ErrKernelMemory:
-		return "kernel memory error"
-
-	case ErrNotOpen:
-		return "device not open"
-	case ErrInvalidTrackNumber:
-		return "invalid track number"
-	case ErrNoAudioTracks:
-		return "no audio tracks on disc"
-	case ErrNoMediumPresent:
-		return "no medium present"
-	case ErrOperationNotSupported:
-		return "option not supported by drive"
-	default:
-		return fmt.Sprintf("unknown error code: %v", int(pe))
-	}
-}
-
-func (ParanoiaError) Error() string {
-	return "cdparanoia: "
-}
-
-// Version returns the libcdparanoia version string
-func Version() string {
-	return C.GoString(C.paranoia_version())
-}
 
 type CDRom struct {
 	drive    unsafe.Pointer // *C.cdrom_drive
@@ -102,28 +28,28 @@ type CDRom struct {
 	opened   bool
 }
 
-func logLevel() C.int {
-	if EnableLogs {
-		return C.CDDA_MESSAGE_PRINTIT
-	}
-	return C.CDDA_MESSAGE_FORGETIT
+// Version returns the libcdparanoia version string
+func Version() string {
+	return C.GoString(C.paranoia_version())
 }
 
-func parseError(retval int) (err error, ok bool) {
-	if retval == 0 {
-		return nil, true
-	}
-	return ParanoiaError(math.Abs(retval)), false
+func OpenDevice(dev string) (*CDRom, error) {
+	str := C.CString(dev)
+	defer C.free(unsafe.Pointer(str))
+	return initDrive(C.cdda_identify(str, logLevel(), nil))
 }
 
-func Init() (*CDRom, error) {
-	drive := C.cdda_find_a_cdrom(logLevel(), nil)
+func Open() (*CDRom, error) {
+	return initDrive(C.cdda_find_a_cdrom(logLevel(), nil))
+}
+
+func initDrive(drive *C.cdrom_drive) (*CDRom, error) {
 	if drive == nil {
 		return nil, ErrNoDrive
 	}
 	paranoia := C.paranoia_init(drive)
 	if err, ok := parseError(C.cdda_open(drive)); !ok {
-		return err
+		return nil, err
 	}
 	return &CDRom{
 		drive:    unsafe.Pointer(drive),
@@ -132,12 +58,77 @@ func Init() (*CDRom, error) {
 	}, nil
 }
 
+func (cdr *CDRom) Model() string {
+	return C.GoString((*C.cdrom_drive)(cdr.drive).drive_model)
+}
+
+func (cdr *CDRom) DriveType() DriveType {
+	return DriveType(int((*C.cdrom_drive)(cdr.drive).drive_type))
+}
+
+func (cdr *CDRom) InterfaceType() InterfaceType {
+	return InterfaceType(int((*C.cdrom_drive)(cdr.drive)._interface))
+}
+
+func (cdr *CDRom) SectorCount() int {
+	return int((*C.cdrom_drive)(cdr.drive).nsectors)
+}
+
+func (cdr *CDRom) TrackCount() int {
+	return int((*C.cdrom_drive)(cdr.drive).tracks)
+}
+
+func (cdr *CDRom) FirstAudioSector() int64 {
+	return int64((*C.cdrom_drive)(cdr.drive).audio_first_sector)
+}
+
+func (cdr *CDRom) LastAudioSector() int64 {
+	return int64((*C.cdrom_drive)(cdr.drive).audio_last_sector)
+}
+
+func (cdr *CDRom) TOC() ([]TOC, error) {
+	drive := (*C.cdrom_drive)(cdr.drive)
+	ctoc := drive.disc_toc
+
+	toc := make([]TOC, cdr.TrackCount())
+	for i := range toc {
+		toc[i].Flags = Flag(ctoc[i].bFlags)
+		toc[i].TrackNum = uint8(ctoc[i].bTrack)
+		toc[i].StartSector = int32(ctoc[i].dwStartSector)
+	}
+	return toc, nil
+}
+
+// ReadAudio
+// SetSpeed
+// cd_extra ??
+
+// TODO: any paranoia methods....
+
 func (cdr *CDRom) Close() error {
 	if cdr.opened {
 		C.cdda_close((*C.cdrom_drive)(cdr.drive))
 	}
-	C.paranoia_free((*C.cdrom_paranoia)(cdr.paranoia))
+	C.paranoia_free(cdr.paranoia)
 	C.free(cdr.drive)
 
 	return nil
+}
+
+func parseError(retval C.int) (err error, ok bool) {
+	if retval == 0 {
+		return nil, true
+	}
+	i := int(retval)
+	if i < 0 {
+		i = -1 * i
+	}
+	return ParanoiaError(i), false
+}
+
+func logLevel() C.int {
+	if EnableLogs {
+		return C.CDDA_MESSAGE_PRINTIT
+	}
+	return C.CDDA_MESSAGE_FORGETIT
 }

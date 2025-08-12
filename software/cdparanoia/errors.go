@@ -1,6 +1,8 @@
 package cdparanoia
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var ErrNoDrive = fmt.Errorf("cdparanoia: no cd drive detected")
 
@@ -74,5 +76,5 @@ func (pe ParanoiaError) name() string {
 }
 
 func (pe ParanoiaError) Error() string {
-	return "cdparanoia: " + pe.name()
+	return fmt.Sprintf("cdparanoia: %v", pe.name())
 }

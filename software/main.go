@@ -14,13 +14,19 @@ func main() {
 	cdparanoia.EnableLogs = true
 
 	fmt.Printf("value: %v\n", cdparanoia.Version())
-	drive, err := cdparanoia.Init()
+	drive, err := cdparanoia.OpenDevice("/dev/sr1")
 	if err != nil {
 		panic(err)
 	}
 	defer drive.Close()
 
-	fmt.Printf("drive: %v\n", drive)
+	fmt.Printf("drive: %+v | model: %v sectors: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.SectorCount(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
+
+	toc, err := drive.TOC()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("TOC: %+v", toc)
 
 	// 	s, err := spi.Open()
 	// if err != nil {
