@@ -15,5 +15,5 @@ export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin
 EOF
 source ~/.bashrc
 
-sudo apt install git cdparanoia
+sudo apt install git cdparanoia libcdparanoia-dev
 ```
