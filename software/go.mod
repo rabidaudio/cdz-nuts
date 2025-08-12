@@ -1,8 +1,6 @@
 module github.com/rabidaudio/cdz-nuts
 
-go 1.23.0
-
-toolchain go1.23.11
+go 1.24.6
 
 require (
 	github.com/diskfs/go-diskfs v1.6.0
