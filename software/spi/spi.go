@@ -10,14 +10,14 @@ import (
 // On loop:
 // Start transaction
 // Pi asks if any blocks to request [COMMAND_QUERY],
-// Mcu responds [ACK | NAK [1 byte], sector address [4 bytes], sector count [1 byte]]
+// Mcu responds [ACK | NAK [1 byte], sector address [uint32_t], sector count [uint8_t]]
 // Pi [ACK], closes transaction
 // if data was requested, Pi opens new transaction, writes all requested bytes, closes
 
 const (
-	NAK   = iota // 0
-	ACK          // 1
-	QUERY        // 2
+	NAK   = iota // 0x00
+	ACK          // 0x01
+	QUERY        // 0x02
 )
 
 const SPI_SPEED = 10_000_000 // 10 MHz
@@ -64,6 +64,11 @@ func (*Spi) Query() (dr DataRequest, err error) {
 	case NAK:
 		dr.Requested = false
 	default:
+		for _, b := range bytes {
+			if b != 0 {
+				return dr, fmt.Errorf("spi: invalid response from mcu: %v", bytes)
+			}
+		}
 		err = ErrNoResponse
 		return
 	}
