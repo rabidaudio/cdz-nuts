@@ -21,4 +21,16 @@ func main() {
 	defer drive.Close()
 
 	fmt.Printf("drive: %v\n", drive)
+
+	// 	s, err := spi.Open()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer s.Close()
+
+	// dr, err := s.Query()
+	// if err != nil {
+	// 	panic(fmt.Errorf("query: %w", err))
+	// }
+	// fmt.Printf("request: %v\n", dr)
 }
