@@ -28,8 +28,8 @@ func TestOldDriveInfo(t *testing.T) {
 	assert.Equal(t, SGIO_SCSI, drive.InterfaceType())
 	assert.Equal(t, 27, drive.SectorCount())
 	assert.Equal(t, 5, drive.TrackCount())
-	assert.Equal(t, int64(0), drive.FirstAudioSector())
-	assert.Equal(t, int64(0), drive.LastAudioSector())
+	assert.Equal(t, SectorIndex(0), drive.FirstAudioSector())
+	assert.Equal(t, SectorIndex(27), drive.LastAudioSector())
 
 	toc, err := drive.TOC()
 	failIfErr(t, err)

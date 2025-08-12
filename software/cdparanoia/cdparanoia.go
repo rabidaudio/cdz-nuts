@@ -16,11 +16,29 @@ package cdparanoia
 // }
 import "C"
 import (
+	"fmt"
+	"io"
 	"unsafe"
 )
 
 // Set this to true to enable debugging
 var EnableLogs = false
+
+// const SectorSizeData = int32(C.CD_FRAMESIZE)
+const SectorSizeRaw = int32(C.CD_FRAMESIZE_RAW)
+
+type ParanoiaFlags int
+
+const (
+	PARANOIA_MODE_FULL      ParanoiaFlags = C.PARANOIA_MODE_FULL
+	PARANOIA_MODE_DISABLE   ParanoiaFlags = C.PARANOIA_MODE_DISABLE
+	PARANOIA_MODE_VERIFY    ParanoiaFlags = C.PARANOIA_MODE_VERIFY
+	PARANOIA_MODE_FRAGMENT  ParanoiaFlags = C.PARANOIA_MODE_FRAGMENT
+	PARANOIA_MODE_OVERLAP   ParanoiaFlags = C.PARANOIA_MODE_OVERLAP
+	PARANOIA_MODE_SCRATCH   ParanoiaFlags = C.PARANOIA_MODE_SCRATCH
+	PARANOIA_MODE_REPAIR    ParanoiaFlags = C.PARANOIA_MODE_REPAIR
+	PARANOIA_MODE_NEVERSKIP ParanoiaFlags = C.PARANOIA_MODE_NEVERSKIP
+)
 
 type CDRom struct {
 	drive    unsafe.Pointer // *C.cdrom_drive
@@ -78,12 +96,12 @@ func (cdr *CDRom) TrackCount() int {
 	return int((*C.cdrom_drive)(cdr.drive).tracks)
 }
 
-func (cdr *CDRom) FirstAudioSector() int64 {
-	return int64((*C.cdrom_drive)(cdr.drive).audio_first_sector)
+func (cdr *CDRom) FirstAudioSector() int32 {
+	return int32((*C.cdrom_drive)(cdr.drive).audio_first_sector)
 }
 
-func (cdr *CDRom) LastAudioSector() int64 {
-	return int64((*C.cdrom_drive)(cdr.drive).audio_last_sector)
+func (cdr *CDRom) LastAudioSector() int32 {
+	return int32((*C.cdrom_drive)(cdr.drive).audio_last_sector)
 }
 
 func (cdr *CDRom) TOC() ([]TOC, error) {
@@ -99,11 +117,51 @@ func (cdr *CDRom) TOC() ([]TOC, error) {
 	return toc, nil
 }
 
+func (cdr *CDRom) SetParanoiaFlags(flags ParanoiaFlags) {
+	C.paranoia_modeset(cdr.paranoia, C.int(flags))
+}
+
+func (cdr *CDRom) ForceSearchOverlap(sectors int32) error {
+	if sectors < 0 || sectors > 75 {
+		return fmt.Errorf("cdparanoia: search overlap sectors must be 0 <= n <= 75")
+	}
+	C.paranoia_overlapset(cdr.paranoia, C.long(sectors))
+	return nil
+}
+
+// paranoia_seek
+
 // ReadAudio
 // SetSpeed
 // cd_extra ??
 
 // TODO: any paranoia methods....
+
+func (cdr *CDRom) Seek(offset int64, whence int) (int64, error) {
+	res := int64(C.paranoia_seek(cdr.paranoia, C.long(offset), C.int(whence)))
+	if res < 0 {
+		err := ParanoiaError(-1 * res)
+		return res, err
+	}
+	return res, nil
+}
+
+func (cdr *CDRom) Read(p []byte) (n int, err error) {
+	if int32(len(p))%SectorSizeRaw != 0 {
+		return 0, fmt.Errorf("cdparanoia: must read complete sectors")
+	}
+	if int32(len(p)) > SectorSizeRaw {
+		return cdr.Read(p[:SectorSizeRaw])
+	}
+	buf := unsafe.Pointer(C.paranoia_read(cdr.paranoia, nil))
+	if buf == nil {
+		/// error from errno field
+	}
+	res := C.GoBytes(buf, C.int(SectorSizeRaw))
+	// copy data into provided buffer, since paranoia will reclaim buffer
+	copy(p, res)
+	return int(SectorSizeRaw), nil
+}
 
 func (cdr *CDRom) Close() error {
 	if cdr.opened {
@@ -114,6 +172,8 @@ func (cdr *CDRom) Close() error {
 
 	return nil
 }
+
+var _ io.ReadSeeker = (*CDRom)(nil)
 
 func parseError(retval C.int) (err error, ok bool) {
 	if retval == 0 {
