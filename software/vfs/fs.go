@@ -14,7 +14,7 @@ import (
 	"github.com/rabidaudio/cdz-nuts/cd"
 )
 
-const DISK_SIZE = 50 * fat32.MB // STOPSHIP // 700 * fat32.MB
+const DISK_SIZE = 700 * fat32.MB
 const SECTOR_SIZE = 512
 
 // Filesystem represents a virtual FAT32 filesystem containing WAV files
