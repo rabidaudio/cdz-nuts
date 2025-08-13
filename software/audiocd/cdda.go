@@ -1,4 +1,4 @@
-package cdda
+package audiocd
 
 // cgo wrapper for libcdparanoia
 
@@ -171,7 +171,7 @@ func (cdr *CDRom) SetParanoiaFlags(flags ParanoiaFlags) {
 
 func (cdr *CDRom) ForceSearchOverlap(sectors int32) error {
 	if sectors < 0 || sectors > 75 {
-		return fmt.Errorf("cdda: search overlap sectors must be 0 <= n <= 75")
+		return fmt.Errorf("audiocd: search overlap sectors must be 0 <= n <= 75")
 	}
 	C.paranoia_overlapset(cdr.paranoia, C.long(sectors))
 	return nil
@@ -186,7 +186,7 @@ func (cdr *CDRom) SetSpeed(kbps int) error {
 func (cdr *CDRom) Seek(offset int64, whence int) (int64, error) {
 	res := int64(C.paranoia_seek(cdr.paranoia, C.long(offset), C.int(whence)))
 	if res < 0 {
-		err := CDDAError(-1 * res)
+		err := AudioCDError(-1 * res)
 		return res, err
 	}
 	return res, nil
@@ -201,7 +201,7 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 	}
 
 	if int32(len(p))%BytesPerSector != 0 {
-		return 0, fmt.Errorf("cdda: must read complete sectors")
+		return 0, fmt.Errorf("audiocd: must read complete sectors")
 	}
 	if int32(len(p)) > BytesPerSector {
 		return cdr.Read(p[:BytesPerSector])
@@ -212,11 +212,11 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 	drive := (*C.cdrom_drive)(cdr.drive)
 	errstring := C.cdda_errors(drive)
 	if errstring != nil {
-		return 0, fmt.Errorf("cdda: %v", C.GoString(errstring))
+		return 0, fmt.Errorf("audiocd: %v", C.GoString(errstring))
 	}
 	msgstring := C.cdda_messages(drive)
 	if msgstring != nil {
-		return 0, fmt.Errorf("cdda: %v", C.GoString(msgstring))
+		return 0, fmt.Errorf("audiocd: %v", C.GoString(msgstring))
 	}
 
 	if buf == nil {
@@ -251,7 +251,7 @@ func parseError(retval C.int) (err error, ok bool) {
 	if i < 0 {
 		i = -1 * i
 	}
-	return CDDAError(i), false
+	return AudioCDError(i), false
 }
 
 func logLevel() C.int {

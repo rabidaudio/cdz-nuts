@@ -1,4 +1,4 @@
-package cdda
+package audiocd
 
 // type SectorIndex int
 

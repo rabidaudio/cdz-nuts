@@ -1,37 +1,37 @@
-package cdda
+package audiocd
 
 import (
 	"fmt"
 )
 
-var ErrNoDrive = fmt.Errorf("cdda: no cd drive detected")
+var ErrNoDrive = fmt.Errorf("audiocd: no cd drive detected")
 
-type CDDAError int
+type AudioCDError int
 
 const (
-	ErrSetReadAudioMode      CDDAError = 1
-	ErrReadTOCLeadOut        CDDAError = 2
-	ErrIllegalNumberOfTracks CDDAError = 3
-	ErrReadTOCHeader         CDDAError = 4
-	ErrReadTOCEntry          CDDAError = 5
-	ErrNoData                CDDAError = 6
-	ErrUnknownReadError      CDDAError = 7
-	ErrUnableToIdentifyModel CDDAError = 8
-	ErrIllegalTOC            CDDAError = 9
+	ErrSetReadAudioMode      AudioCDError = 1
+	ErrReadTOCLeadOut        AudioCDError = 2
+	ErrIllegalNumberOfTracks AudioCDError = 3
+	ErrReadTOCHeader         AudioCDError = 4
+	ErrReadTOCEntry          AudioCDError = 5
+	ErrNoData                AudioCDError = 6
+	ErrUnknownReadError      AudioCDError = 7
+	ErrUnableToIdentifyModel AudioCDError = 8
+	ErrIllegalTOC            AudioCDError = 9
 
-	ErrInterfaceNotSupported CDDAError = 100
-	ErrPermissionDenied      CDDAError = 102
+	ErrInterfaceNotSupported AudioCDError = 100
+	ErrPermissionDenied      AudioCDError = 102
 
-	ErrKernelMemory CDDAError = 300
+	ErrKernelMemory AudioCDError = 300
 
-	ErrNotOpen               CDDAError = 400
-	ErrInvalidTrackNumber    CDDAError = 401
-	ErrNoAudioTracks         CDDAError = 403
-	ErrNoMediumPresent       CDDAError = 404
-	ErrOperationNotSupported CDDAError = 405
+	ErrNotOpen               AudioCDError = 400
+	ErrInvalidTrackNumber    AudioCDError = 401
+	ErrNoAudioTracks         AudioCDError = 403
+	ErrNoMediumPresent       AudioCDError = 404
+	ErrOperationNotSupported AudioCDError = 405
 )
 
-func (pe CDDAError) name() string {
+func (pe AudioCDError) name() string {
 	switch pe {
 	case ErrSetReadAudioMode:
 		return "unable to set CDROM to read audio mode"
@@ -75,6 +75,6 @@ func (pe CDDAError) name() string {
 	}
 }
 
-func (pe CDDAError) Error() string {
-	return fmt.Sprintf("cdda: %v", pe.name())
+func (pe AudioCDError) Error() string {
+	return fmt.Sprintf("audiocd: %v", pe.name())
 }

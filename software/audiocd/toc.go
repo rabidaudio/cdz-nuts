@@ -1,4 +1,4 @@
-package cdda
+package audiocd
 
 const MaxTracks = 100
 

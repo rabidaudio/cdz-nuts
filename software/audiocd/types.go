@@ -1,4 +1,4 @@
-package cdda
+package audiocd
 
 // #include <linux/major.h>
 // #include <cdda_interface.h>

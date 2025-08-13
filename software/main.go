@@ -5,14 +5,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/rabidaudio/cdz-nuts/cdda"
+	"github.com/rabidaudio/cdz-nuts/audiocd"
 )
 
 func main() {
-	cdda.EnableLogs = true
+	audiocd.EnableLogs = true
 
-	fmt.Printf("value: %v\n", cdda.Version())
-	drive, err := cdda.OpenDevice("/dev/sr1")
+	fmt.Printf("value: %v\n", audiocd.Version())
+	drive, err := audiocd.OpenDevice("/dev/sr1")
 	if err != nil {
 		panic(err)
 	}
@@ -30,7 +30,7 @@ func main() {
 		panic(err)
 	}
 
-	buf := make([]byte, toc[4].LengthSectors*cdda.BytesPerSector)
+	buf := make([]byte, toc[4].LengthSectors*audiocd.BytesPerSector)
 	read := 0
 	for read < len(buf) {
 		n, err := drive.Read(buf[read:])
