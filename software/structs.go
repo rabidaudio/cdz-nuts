@@ -1,4 +1,4 @@
-package cd
+package main
 
 import "io"
 

@@ -1,4 +1,4 @@
-package cdparanoia
+package cdda
 
 // #include <linux/major.h>
 // #include <cdda_interface.h>

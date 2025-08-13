@@ -1,4 +1,4 @@
-package cdparanoia
+package cdda
 
 // cgo wrapper for libcdparanoia
 
@@ -24,8 +24,7 @@ import (
 // Set this to true to enable debugging
 var EnableLogs = false // TODO: refator to log package
 
-// const SectorSizeData = int32(C.CD_FRAMESIZE)
-const SectorSizeRaw = int32(C.CD_FRAMESIZE_RAW)
+const BytesPerSector = int32(C.CD_FRAMESIZE_RAW)
 
 // (samples/second)*(bytes/sample)*(channels)/(bytes/sector) = 75 sectors/sec
 const SectorsPerSecond = (44100 * 2 * 2) / 2352
@@ -35,8 +34,9 @@ const FullSpeed = -1
 type ParanoiaFlags int
 
 const (
-	PARANOIA_MODE_FULL      ParanoiaFlags = C.PARANOIA_MODE_FULL
-	PARANOIA_MODE_DISABLE   ParanoiaFlags = C.PARANOIA_MODE_DISABLE
+	PARANOIA_MODE_FULL    ParanoiaFlags = C.PARANOIA_MODE_FULL
+	PARANOIA_MODE_DISABLE ParanoiaFlags = C.PARANOIA_MODE_DISABLE
+
 	PARANOIA_MODE_VERIFY    ParanoiaFlags = C.PARANOIA_MODE_VERIFY
 	PARANOIA_MODE_FRAGMENT  ParanoiaFlags = C.PARANOIA_MODE_FRAGMENT
 	PARANOIA_MODE_OVERLAP   ParanoiaFlags = C.PARANOIA_MODE_OVERLAP
@@ -171,7 +171,7 @@ func (cdr *CDRom) SetParanoiaFlags(flags ParanoiaFlags) {
 
 func (cdr *CDRom) ForceSearchOverlap(sectors int32) error {
 	if sectors < 0 || sectors > 75 {
-		return fmt.Errorf("cdparanoia: search overlap sectors must be 0 <= n <= 75")
+		return fmt.Errorf("cdda: search overlap sectors must be 0 <= n <= 75")
 	}
 	C.paranoia_overlapset(cdr.paranoia, C.long(sectors))
 	return nil
@@ -186,7 +186,7 @@ func (cdr *CDRom) SetSpeed(kbps int) error {
 func (cdr *CDRom) Seek(offset int64, whence int) (int64, error) {
 	res := int64(C.paranoia_seek(cdr.paranoia, C.long(offset), C.int(whence)))
 	if res < 0 {
-		err := ParanoiaError(-1 * res)
+		err := CDDAError(-1 * res)
 		return res, err
 	}
 	return res, nil
@@ -200,11 +200,11 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	if int32(len(p))%SectorSizeRaw != 0 {
-		return 0, fmt.Errorf("cdparanoia: must read complete sectors")
+	if int32(len(p))%BytesPerSector != 0 {
+		return 0, fmt.Errorf("cdda: must read complete sectors")
 	}
-	if int32(len(p)) > SectorSizeRaw {
-		return cdr.Read(p[:SectorSizeRaw])
+	if int32(len(p)) > BytesPerSector {
+		return cdr.Read(p[:BytesPerSector])
 	}
 	buf := unsafe.Pointer(C.paranoia_read_limited(cdr.paranoia, nil, C.int(cdr.MaxRetries)))
 
@@ -212,20 +212,20 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 	drive := (*C.cdrom_drive)(cdr.drive)
 	errstring := C.cdda_errors(drive)
 	if errstring != nil {
-		return 0, fmt.Errorf("cdparanoia: %v", C.GoString(errstring))
+		return 0, fmt.Errorf("cdda: %v", C.GoString(errstring))
 	}
 	msgstring := C.cdda_messages(drive)
 	if msgstring != nil {
-		return 0, fmt.Errorf("cdparanoia: %v", C.GoString(msgstring))
+		return 0, fmt.Errorf("cdda: %v", C.GoString(msgstring))
 	}
 
 	if buf == nil {
 		/// error from errno field
 	}
-	res := C.GoBytes(buf, C.int(SectorSizeRaw))
+	res := C.GoBytes(buf, C.int(BytesPerSector))
 	// copy data into provided buffer, since paranoia will reclaim buffer
 	copy(p, res)
-	return int(SectorSizeRaw), nil
+	return int(BytesPerSector), nil
 }
 
 func (cdr *CDRom) Close() error {
@@ -251,7 +251,7 @@ func parseError(retval C.int) (err error, ok bool) {
 	if i < 0 {
 		i = -1 * i
 	}
-	return ParanoiaError(i), false
+	return CDDAError(i), false
 }
 
 func logLevel() C.int {

@@ -1,37 +1,37 @@
-package cdparanoia
+package cdda
 
 import (
 	"fmt"
 )
 
-var ErrNoDrive = fmt.Errorf("cdparanoia: no cd drive detected")
+var ErrNoDrive = fmt.Errorf("cdda: no cd drive detected")
 
-type ParanoiaError int
+type CDDAError int
 
 const (
-	ErrSetReadAudioMode      ParanoiaError = 1
-	ErrReadTOCLeadOut        ParanoiaError = 2
-	ErrIllegalNumberOfTracks ParanoiaError = 3
-	ErrReadTOCHeader         ParanoiaError = 4
-	ErrReadTOCEntry          ParanoiaError = 5
-	ErrNoData                ParanoiaError = 6
-	ErrUnknownReadError      ParanoiaError = 7
-	ErrUnableToIdentifyModel ParanoiaError = 8
-	ErrIllegalTOC            ParanoiaError = 9
+	ErrSetReadAudioMode      CDDAError = 1
+	ErrReadTOCLeadOut        CDDAError = 2
+	ErrIllegalNumberOfTracks CDDAError = 3
+	ErrReadTOCHeader         CDDAError = 4
+	ErrReadTOCEntry          CDDAError = 5
+	ErrNoData                CDDAError = 6
+	ErrUnknownReadError      CDDAError = 7
+	ErrUnableToIdentifyModel CDDAError = 8
+	ErrIllegalTOC            CDDAError = 9
 
-	ErrInterfaceNotSupported ParanoiaError = 100
-	ErrPermissionDenied      ParanoiaError = 102
+	ErrInterfaceNotSupported CDDAError = 100
+	ErrPermissionDenied      CDDAError = 102
 
-	ErrKernelMemory ParanoiaError = 300
+	ErrKernelMemory CDDAError = 300
 
-	ErrNotOpen               ParanoiaError = 400
-	ErrInvalidTrackNumber    ParanoiaError = 401
-	ErrNoAudioTracks         ParanoiaError = 403
-	ErrNoMediumPresent       ParanoiaError = 404
-	ErrOperationNotSupported ParanoiaError = 405
+	ErrNotOpen               CDDAError = 400
+	ErrInvalidTrackNumber    CDDAError = 401
+	ErrNoAudioTracks         CDDAError = 403
+	ErrNoMediumPresent       CDDAError = 404
+	ErrOperationNotSupported CDDAError = 405
 )
 
-func (pe ParanoiaError) name() string {
+func (pe CDDAError) name() string {
 	switch pe {
 	case ErrSetReadAudioMode:
 		return "unable to set CDROM to read audio mode"
@@ -75,6 +75,6 @@ func (pe ParanoiaError) name() string {
 	}
 }
 
-func (pe ParanoiaError) Error() string {
-	return fmt.Sprintf("cdparanoia: %v", pe.name())
+func (pe CDDAError) Error() string {
+	return fmt.Sprintf("cdda: %v", pe.name())
 }

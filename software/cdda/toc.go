@@ -1,4 +1,4 @@
-package cdparanoia
+package cdda
 
 const MaxTracks = 100
 

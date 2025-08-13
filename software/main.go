@@ -1,22 +1,18 @@
 package main
 
 import (
-	// "go.uploadedlobster.com/discid"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/rabidaudio/cdz-nuts/cdparanoia"
+	"github.com/rabidaudio/cdz-nuts/cdda"
 )
 
 func main() {
-	// disc := discid.Read("") // Read from default device
-	// defer disc.Close()
+	cdda.EnableLogs = true
 
-	cdparanoia.EnableLogs = true
-
-	fmt.Printf("value: %v\n", cdparanoia.Version())
-	drive, err := cdparanoia.OpenDevice("/dev/sr1")
+	fmt.Printf("value: %v\n", cdda.Version())
+	drive, err := cdda.OpenDevice("/dev/sr1")
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +30,7 @@ func main() {
 		panic(err)
 	}
 
-	buf := make([]byte, toc[4].LengthSectors*cdparanoia.SectorSizeRaw)
+	buf := make([]byte, toc[4].LengthSectors*cdda.BytesPerSector)
 	read := 0
 	for read < len(buf) {
 		n, err := drive.Read(buf[read:])

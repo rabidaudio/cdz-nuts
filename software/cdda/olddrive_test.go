@@ -1,4 +1,4 @@
-package cdparanoia
+package cdda
 
 import (
 	"os"
@@ -64,7 +64,7 @@ func TestRead(t *testing.T) {
 	failIfErr(t, err)
 	defer drive.Close()
 
-	buf := make([]byte, SectorSizeRaw)
+	buf := make([]byte, BytesPerSector)
 	n, err := drive.Read(buf)
 	failIfErr(t, err)
 	assert.Equal(t, len(buf), n)
@@ -88,7 +88,7 @@ func TestRipTrack1(t *testing.T) {
 	start := toc[0].StartSector
 	end := toc[1].StartSector
 
-	buf := make([]byte, (end-start)*SectorSizeRaw)
+	buf := make([]byte, (end-start)*BytesPerSector)
 	read := 0
 	for read < len(buf) {
 		n, err := drive.Read(buf[read:])
@@ -96,7 +96,7 @@ func TestRipTrack1(t *testing.T) {
 		read += n
 	}
 
-	assert.True(t, read%int(SectorSizeRaw) == 0)
+	assert.True(t, read%int(BytesPerSector) == 0)
 	assert.Equal(t, len(buf), read)
 
 	err = os.WriteFile("track1.cdda", buf, 0777)
@@ -114,7 +114,7 @@ func TestRipTrack5(t *testing.T) {
 	start := toc[4].StartSector
 	end := start + toc[4].LengthSectors
 
-	buf := make([]byte, (end-start)*SectorSizeRaw)
+	buf := make([]byte, (end-start)*BytesPerSector)
 	read := 0
 	for read < len(buf) {
 		n, err := drive.Read(buf[read:])
@@ -122,7 +122,7 @@ func TestRipTrack5(t *testing.T) {
 		read += n
 	}
 
-	assert.True(t, read%int(SectorSizeRaw) == 0)
+	assert.True(t, read%int(BytesPerSector) == 0)
 	assert.Equal(t, len(buf), read)
 
 	err = os.WriteFile("track5.cdda", buf, 0777)
