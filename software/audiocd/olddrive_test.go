@@ -59,7 +59,6 @@ func TestOldDriveInfo(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	EnableLogs = true
 	drive, err := OpenDevice("/dev/sr1")
 	failIfErr(t, err)
 	defer drive.Close()
@@ -78,7 +77,6 @@ func TestRead(t *testing.T) {
 }
 
 func TestRipTrack1(t *testing.T) {
-	EnableLogs = true
 	drive, err := OpenDevice("/dev/sr1")
 	failIfErr(t, err)
 	defer drive.Close()
@@ -104,7 +102,6 @@ func TestRipTrack1(t *testing.T) {
 }
 
 func TestRipTrack5(t *testing.T) {
-	EnableLogs = true
 	drive, err := OpenDevice("/dev/sr1")
 	failIfErr(t, err)
 	defer drive.Close()

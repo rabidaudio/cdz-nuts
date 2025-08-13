@@ -9,10 +9,9 @@ import (
 )
 
 func main() {
-	audiocd.EnableLogs = true
-
 	fmt.Printf("value: %v\n", audiocd.Version())
-	drive, err := audiocd.OpenDevice("/dev/sr1")
+	drive, err := audiocd.OpenDeviceL("/dev/sr1", audiocd.LogModeStdErr, nil)
+	// drive, err := audiocd.OpenDefaultL(audiocd.LogModeLogger, log.Default())
 	if err != nil {
 		panic(err)
 	}

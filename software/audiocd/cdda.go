@@ -18,16 +18,20 @@ import "C"
 import (
 	"fmt"
 	"io"
+	"log"
+	"strings"
 	"unsafe"
 )
 
-// Set this to true to enable debugging
-var EnableLogs = false // TODO: refator to log package
+type LogMode int
+
+const (
+	LogModeSilent LogMode = 0
+	LogModeStdErr LogMode = 1
+	LogModeLogger LogMode = 2
+)
 
 const BytesPerSector = int32(C.CD_FRAMESIZE_RAW)
-
-// (samples/second)*(bytes/sample)*(channels)/(bytes/sector) = 75 sectors/sec
-const SectorsPerSecond = (44100 * 2 * 2) / 2352
 
 const FullSpeed = -1
 
@@ -49,6 +53,8 @@ type CDRom struct {
 	drive      unsafe.Pointer // *C.cdrom_drive
 	paranoia   unsafe.Pointer // *C.cdrom_paranoia
 	MaxRetries int
+	LogMode    LogMode
+	Logger     *log.Logger
 }
 
 // TODO: cdda_track_copyp,cdda_track_preemp,cdda_track_channels
@@ -58,17 +64,34 @@ func Version() string {
 	return C.GoString(C.paranoia_version())
 }
 
+func OpenDefault() (*CDRom, error) {
+	return OpenDefaultL(LogModeSilent, nil)
+}
+
+func OpenDefaultL(lm LogMode, logger *log.Logger) (*CDRom, error) {
+	logLevel, logFlush := prepareLogs(lm, logger)
+	var p *C.char
+	d := C.cdda_find_a_cdrom(logLevel, &p)
+	logFlush(unsafe.Pointer(p))
+	return initDrive(d, lm, logger)
+}
+
 func OpenDevice(dev string) (*CDRom, error) {
+	return OpenDeviceL(dev, LogModeSilent, nil)
+}
+
+func OpenDeviceL(dev string, lm LogMode, logger *log.Logger) (*CDRom, error) {
 	str := C.CString(dev)
 	defer C.free(unsafe.Pointer(str))
-	return initDrive(C.cdda_identify(str, logLevel(), nil))
+
+	logLevel, logFlush := prepareLogs(lm, logger)
+	var p *C.char
+	d := C.cdda_identify(str, logLevel, &p)
+	logFlush(unsafe.Pointer(p))
+	return initDrive(d, lm, logger)
 }
 
-func Open() (*CDRom, error) {
-	return initDrive(C.cdda_find_a_cdrom(logLevel(), nil))
-}
-
-func initDrive(drive *C.cdrom_drive) (*CDRom, error) {
+func initDrive(drive *C.cdrom_drive, lm LogMode, logger *log.Logger) (*CDRom, error) {
 	if drive == nil {
 		return nil, ErrNoDrive
 	}
@@ -83,6 +106,8 @@ func initDrive(drive *C.cdrom_drive) (*CDRom, error) {
 		drive:      unsafe.Pointer(drive),
 		paranoia:   unsafe.Pointer(paranoia),
 		MaxRetries: 20,
+		LogMode:    lm,
+		Logger:     logger,
 	}
 
 	err := cdr.SetSpeed(FullSpeed)
@@ -166,6 +191,8 @@ func (cdr *CDRom) IsOpen() bool {
 }
 
 func (cdr *CDRom) SetParanoiaFlags(flags ParanoiaFlags) {
+	defer cdr.flushLogs()
+
 	C.paranoia_modeset(cdr.paranoia, C.int(flags))
 }
 
@@ -173,17 +200,21 @@ func (cdr *CDRom) ForceSearchOverlap(sectors int32) error {
 	if sectors < 0 || sectors > 75 {
 		return fmt.Errorf("audiocd: search overlap sectors must be 0 <= n <= 75")
 	}
+	defer cdr.flushLogs()
+
 	C.paranoia_overlapset(cdr.paranoia, C.long(sectors))
 	return nil
 }
 
 func (cdr *CDRom) SetSpeed(kbps int) error {
+	defer cdr.flushLogs()
 	drive := (*C.cdrom_drive)(cdr.drive)
 	err, _ := parseError(C.bridge_set_speed(drive.set_speed, drive, C.int(kbps)))
 	return err
 }
 
 func (cdr *CDRom) Seek(offset int64, whence int) (int64, error) {
+	defer cdr.flushLogs()
 	res := int64(C.paranoia_seek(cdr.paranoia, C.long(offset), C.int(whence)))
 	if res < 0 {
 		err := AudioCDError(-1 * res)
@@ -207,21 +238,15 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 		return cdr.Read(p[:BytesPerSector])
 	}
 	buf := unsafe.Pointer(C.paranoia_read_limited(cdr.paranoia, nil, C.int(cdr.MaxRetries)))
-
-	// check for errors
-	drive := (*C.cdrom_drive)(cdr.drive)
-	errstring := C.cdda_errors(drive)
-	if errstring != nil {
-		return 0, fmt.Errorf("audiocd: %v", C.GoString(errstring))
+	// run logs and check for errors
+	err = cdr.flushLogs()
+	if err != nil {
+		return 0, err
 	}
-	msgstring := C.cdda_messages(drive)
-	if msgstring != nil {
-		return 0, fmt.Errorf("audiocd: %v", C.GoString(msgstring))
-	}
-
 	if buf == nil {
-		/// error from errno field
+		return 0, fmt.Errorf("audiocd: unknown error")
 	}
+
 	res := C.GoBytes(buf, C.int(BytesPerSector))
 	// copy data into provided buffer, since paranoia will reclaim buffer
 	copy(p, res)
@@ -235,6 +260,7 @@ func (cdr *CDRom) Close() error {
 	if cdr.paranoia != nil {
 		C.paranoia_free(cdr.paranoia)
 	}
+	// this doesn't seem to be necessary, and can cause double-free's
 	// if cdr.drive != nil {
 	// 	C.free(cdr.drive)
 	// }
@@ -254,9 +280,51 @@ func parseError(retval C.int) (err error, ok bool) {
 	return AudioCDError(i), false
 }
 
-func logLevel() C.int {
-	if EnableLogs {
-		return C.CDDA_MESSAGE_PRINTIT
+func prepareLogs(lm LogMode, logger *log.Logger) (C.int, func(unsafe.Pointer)) {
+	nopLogFlush := func(p unsafe.Pointer) {}
+	switch lm {
+	case LogModeStdErr:
+		return C.int(LogModeStdErr), nopLogFlush
+	case LogModeLogger:
+		if logger != nil {
+			return C.int(LogModeLogger), func(p unsafe.Pointer) {
+				if logger != nil && p != nil {
+					str := C.GoString((*C.char)(p))
+					for line := range strings.Lines(str) {
+						logger.Print(line)
+					}
+					C.free(p)
+				}
+			}
+		}
 	}
-	return C.CDDA_MESSAGE_FORGETIT
+	return C.int(LogModeSilent), nopLogFlush
+}
+
+func (cdr *CDRom) flushLogs() (err error) {
+	drive := (*C.cdrom_drive)(cdr.drive)
+
+	errstring := C.cdda_errors(drive)
+	if errstring != nil {
+		err = fmt.Errorf("audiocd: %v", C.GoString(errstring))
+	}
+
+	logger := cdr.Logger
+	if cdr.LogMode != LogModeLogger || logger == nil {
+		return
+	}
+
+	if errstring != nil {
+		for line := range strings.Lines(C.GoString(errstring)) {
+			logger.Print(line)
+		}
+	}
+
+	msgstring := C.cdda_messages(drive)
+	if msgstring != nil {
+		for line := range strings.Lines(C.GoString(msgstring)) {
+			logger.Print(line)
+		}
+	}
+	return
 }
