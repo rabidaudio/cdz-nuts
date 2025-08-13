@@ -1,6 +1,7 @@
 package cdparanoia
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,13 +27,11 @@ func TestOldDriveInfo(t *testing.T) {
 	assert.Equal(t, "MATSHITA UJDA775 DVD/CDRW 1.00 ", drive.Model())
 	assert.Equal(t, SCSI_CDROM_MAJOR, drive.DriveType())
 	assert.Equal(t, SGIO_SCSI, drive.InterfaceType())
-	assert.Equal(t, 27, drive.SectorCount())
+	assert.Equal(t, 27, drive.SectorsPerRead())
 	assert.Equal(t, 5, drive.TrackCount())
-	assert.Equal(t, SectorIndex(0), drive.FirstAudioSector())
-	assert.Equal(t, SectorIndex(27), drive.LastAudioSector())
+	assert.Equal(t, int32(0), drive.FirstAudioSector())
 
-	toc, err := drive.TOC()
-	failIfErr(t, err)
+	toc := drive.TOC()
 
 	assert.Equal(t, drive.TrackCount(), len(toc))
 
@@ -48,4 +47,84 @@ func TestOldDriveInfo(t *testing.T) {
 
 	assert.Equal(t, int32(0), toc[0].StartSector)
 	assert.Equal(t, int32(44988), toc[4].StartSector)
+
+	assert.Equal(t, int32(6290), toc[0].LengthSectors)
+	assert.Equal(t, int32(17021), toc[1].LengthSectors)
+	assert.Equal(t, int32(7763), toc[2].LengthSectors)
+	assert.Equal(t, int32(13914), toc[3].LengthSectors)
+	assert.Equal(t, int32(11903), toc[4].LengthSectors)
+
+	len := drive.LengthSectors()
+	assert.Equal(t, int32(56891), len)
+}
+
+func TestRead(t *testing.T) {
+	EnableLogs = true
+	drive, err := OpenDevice("/dev/sr1")
+	failIfErr(t, err)
+	defer drive.Close()
+
+	buf := make([]byte, SectorSizeRaw)
+	n, err := drive.Read(buf)
+	failIfErr(t, err)
+	assert.Equal(t, len(buf), n)
+
+	for _, v := range buf[:16] {
+		if v != 0 {
+			return
+		}
+	}
+	t.Fatalf("expected data but found none: %v", buf[:64])
+}
+
+func TestRipTrack1(t *testing.T) {
+	EnableLogs = true
+	drive, err := OpenDevice("/dev/sr1")
+	failIfErr(t, err)
+	defer drive.Close()
+
+	toc := drive.TOC()
+
+	start := toc[0].StartSector
+	end := toc[1].StartSector
+
+	buf := make([]byte, (end-start)*SectorSizeRaw)
+	read := 0
+	for read < len(buf) {
+		n, err := drive.Read(buf[read:])
+		failIfErr(t, err)
+		read += n
+	}
+
+	assert.True(t, read%int(SectorSizeRaw) == 0)
+	assert.Equal(t, len(buf), read)
+
+	err = os.WriteFile("track1.cdda", buf, 0777)
+	failIfErr(t, err)
+}
+
+func TestRipTrack5(t *testing.T) {
+	EnableLogs = true
+	drive, err := OpenDevice("/dev/sr1")
+	failIfErr(t, err)
+	defer drive.Close()
+
+	toc := drive.TOC()
+
+	start := toc[4].StartSector
+	end := start + toc[4].LengthSectors
+
+	buf := make([]byte, (end-start)*SectorSizeRaw)
+	read := 0
+	for read < len(buf) {
+		n, err := drive.Read(buf[read:])
+		failIfErr(t, err)
+		read += n
+	}
+
+	assert.True(t, read%int(SectorSizeRaw) == 0)
+	assert.Equal(t, len(buf), read)
+
+	err = os.WriteFile("track5.cdda", buf, 0777)
+	failIfErr(t, err)
 }

@@ -10,7 +10,8 @@ func (f Flag) IsAudio() bool {
 }
 
 type TOC struct {
-	Flags       Flag
-	TrackNum    uint8 // 1-indexed
-	StartSector int32
+	Flags         Flag
+	TrackNum      uint8 // 1-indexed
+	StartSector   int32
+	LengthSectors int32 // TODO: handle airgaps
 }

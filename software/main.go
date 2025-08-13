@@ -3,6 +3,8 @@ package main
 import (
 	// "go.uploadedlobster.com/discid"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/rabidaudio/cdz-nuts/cdparanoia"
 )
@@ -20,13 +22,32 @@ func main() {
 	}
 	defer drive.Close()
 
-	fmt.Printf("drive: %+v | model: %v sectors: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.SectorCount(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
+	fmt.Printf("drive: %+v | model: %v sectors/read: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.SectorsPerRead(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
 
-	toc, err := drive.TOC()
+	toc := drive.TOC()
+	fmt.Printf("TOC: %+v", toc)
+
+	start := toc[4].StartSector
+
+	_, err = drive.Seek(int64(start), io.SeekStart)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("TOC: %+v", toc)
+
+	buf := make([]byte, toc[4].LengthSectors*cdparanoia.SectorSizeRaw)
+	read := 0
+	for read < len(buf) {
+		n, err := drive.Read(buf[read:])
+		if err != nil {
+			panic(err)
+		}
+		read += n
+	}
+
+	err = os.WriteFile("track5.cdda", buf, 0777)
+	if err != nil {
+		panic(err)
+	}
 
 	// 	s, err := spi.Open()
 	// if err != nil {
