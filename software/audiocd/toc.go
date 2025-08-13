@@ -7,9 +7,9 @@ func (f Flag) IsAudio() bool {
 	return (uint8(f) & 0x04) == 0
 }
 
-type TOC struct {
+type TrackPosition struct {
 	Flags         Flag
 	TrackNum      uint8 // 1-indexed
 	StartSector   int32
-	LengthSectors int32 // TODO: handle airgaps
+	LengthSectors int32 // TODO: handle pregap?
 }

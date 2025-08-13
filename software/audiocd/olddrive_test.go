@@ -20,7 +20,8 @@ func failIfErr(t *testing.T, err error) {
 // NOTE: this test is setup for a specific test device
 // with a specific CD plugged in and is not portable
 func TestOldDriveInfo(t *testing.T) {
-	drive, err := OpenDevice("/dev/sr1")
+	drive := AudioCD{Device: "/dev/sr1"}
+	err := drive.Open()
 	failIfErr(t, err)
 	defer drive.Close()
 
@@ -59,7 +60,8 @@ func TestOldDriveInfo(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	drive, err := OpenDevice("/dev/sr1")
+	drive := AudioCD{Device: "/dev/sr1"}
+	err := drive.Open()
 	failIfErr(t, err)
 	defer drive.Close()
 
@@ -77,7 +79,8 @@ func TestRead(t *testing.T) {
 }
 
 func TestRipTrack1(t *testing.T) {
-	drive, err := OpenDevice("/dev/sr1")
+	drive := AudioCD{Device: "/dev/sr1"}
+	err := drive.Open()
 	failIfErr(t, err)
 	defer drive.Close()
 
@@ -102,7 +105,8 @@ func TestRipTrack1(t *testing.T) {
 }
 
 func TestRipTrack5(t *testing.T) {
-	drive, err := OpenDevice("/dev/sr1")
+	drive := AudioCD{Device: "/dev/sr1"}
+	err := drive.Open()
 	failIfErr(t, err)
 	defer drive.Close()
 
