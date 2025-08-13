@@ -17,10 +17,10 @@ func main() {
 	}
 	defer drive.Close()
 
-	fmt.Printf("drive: %+v | model: %v sectors/read: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.SectorsPerRead(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
+	fmt.Printf("drive: %+v | model: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
 
 	toc := drive.TOC()
-	fmt.Printf("TOC: %+v", toc)
+	fmt.Printf("TOC: %+v\n", toc)
 
 	start := toc[4].StartSector
 

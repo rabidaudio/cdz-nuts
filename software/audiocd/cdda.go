@@ -57,7 +57,7 @@ type CDRom struct {
 	Logger     *log.Logger
 }
 
-// TODO: cdda_track_copyp,cdda_track_preemp,cdda_track_channels
+var _ io.ReadSeeker = (*CDRom)(nil)
 
 // Version returns the libcdparanoia version string
 func Version() string {
@@ -124,6 +124,8 @@ func initDrive(drive *C.cdrom_drive, lm LogMode, logger *log.Logger) (*CDRom, er
 	return &cdr, nil
 }
 
+// TODO: cdda_track_copyp,cdda_track_preemp,cdda_track_channels
+
 // func (cdr *CDRom) cddaSectorGetTrack(i int) int {
 // 	return int(C.cdda_sector_gettrack((*C.cdrom_drive)(cdr.drive), C.long(i)))
 // }
@@ -140,13 +142,13 @@ func (cdr *CDRom) InterfaceType() InterfaceType {
 	return InterfaceType(int((*C.cdrom_drive)(cdr.drive)._interface))
 }
 
-func (cdr *CDRom) SectorsPerRead() int {
-	return int((*C.cdrom_drive)(cdr.drive).nsectors)
-}
+// func (cdr *CDRom) SectorsPerRead() int {
+// 	return int((*C.cdrom_drive)(cdr.drive).nsectors)
+// }
 
-func (cdr *CDRom) SetSectorsPerRead(sectors int) {
-	(*C.cdrom_drive)(cdr.drive).nsectors = C.int(sectors)
-}
+// func (cdr *CDRom) SetSectorsPerRead(sectors int) {
+// 	(*C.cdrom_drive)(cdr.drive).nsectors = C.int(sectors)
+// }
 
 func (cdr *CDRom) TrackCount() int {
 	return int((*C.cdrom_drive)(cdr.drive).tracks)
@@ -237,6 +239,7 @@ func (cdr *CDRom) Read(p []byte) (n int, err error) {
 	if int32(len(p)) > BytesPerSector {
 		return cdr.Read(p[:BytesPerSector])
 	}
+	// TODO: expose callback
 	buf := unsafe.Pointer(C.paranoia_read_limited(cdr.paranoia, nil, C.int(cdr.MaxRetries)))
 	// run logs and check for errors
 	err = cdr.flushLogs()
@@ -266,8 +269,6 @@ func (cdr *CDRom) Close() error {
 	// }
 	return nil
 }
-
-var _ io.ReadSeeker = (*CDRom)(nil)
 
 func parseError(retval C.int) (err error, ok bool) {
 	if retval == 0 {

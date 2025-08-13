@@ -1,7 +1,5 @@
 package audiocd
 
-const MaxTracks = 100
-
 // TODO: make constants for these. Couldn't find the definitions, should be in redbook
 type Flag uint8
 
