@@ -2,10 +2,13 @@ package audiocd
 
 import (
 	"fmt"
+	"io/fs"
 )
 
-var ErrNoDrive = fmt.Errorf("audiocd: no cd drive detected")
+// ErrNoDrive is returned when no valid cd drive was found.
+var ErrNoDrive = fs.ErrNotExist
 
+// Errors returned while reading audio data.
 type AudioCDError int
 
 const (
@@ -18,18 +21,19 @@ const (
 	ErrUnknownReadError      AudioCDError = 7
 	ErrUnableToIdentifyModel AudioCDError = 8
 	ErrIllegalTOC            AudioCDError = 9
-
 	ErrInterfaceNotSupported AudioCDError = 100
 	ErrPermissionDenied      AudioCDError = 102
-
-	ErrKernelMemory AudioCDError = 300
-
+	ErrKernelMemory          AudioCDError = 300
 	ErrNotOpen               AudioCDError = 400
 	ErrInvalidTrackNumber    AudioCDError = 401
 	ErrNoAudioTracks         AudioCDError = 403
 	ErrNoMediumPresent       AudioCDError = 404
 	ErrOperationNotSupported AudioCDError = 405
 )
+
+func (pe AudioCDError) Error() string {
+	return fmt.Sprintf("audiocd: %v", pe.name())
+}
 
 func (pe AudioCDError) name() string {
 	switch pe {
@@ -73,8 +77,4 @@ func (pe AudioCDError) name() string {
 	default:
 		return fmt.Sprintf("unknown error code: %v", int(pe))
 	}
-}
-
-func (pe AudioCDError) Error() string {
-	return fmt.Sprintf("audiocd: %v", pe.name())
 }

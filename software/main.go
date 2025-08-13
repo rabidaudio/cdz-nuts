@@ -10,7 +10,8 @@ import (
 
 func main() {
 	fmt.Printf("value: %v\n", audiocd.Version())
-	drive := audiocd.AudioCD{Device: "/dev/sr1", LogMode: audiocd.LogModeStdErr}
+	drive := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
+	// Device: "/dev/sr1",
 	// drive.LogMode = audiocd.LogModeLogger
 	// drive.Logger = log.Default()
 	err := drive.Open()

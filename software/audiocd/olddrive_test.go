@@ -43,7 +43,7 @@ func TestOldDriveInfo(t *testing.T) {
 	assert.Equal(t, uint8(5), toc[4].TrackNum)
 
 	for i := range toc {
-		assert.True(t, toc[i].Flags.IsAudio())
+		assert.True(t, toc[i].IsAudio())
 	}
 
 	assert.Equal(t, int32(0), toc[0].StartSector)

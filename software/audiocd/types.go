@@ -4,6 +4,8 @@ package audiocd
 // #include <cdda_interface.h>
 import "C"
 
+// InterfaceType represents the driver implementation used
+// to access the drive.
 type InterfaceType int
 
 const (
@@ -14,9 +16,15 @@ const (
 	SGIO_SCSI_BUGGY1 InterfaceType = C.SGIO_SCSI_BUGGY1
 )
 
+// DriveType represents the underlying driver/protocol used
+// by the drive.
+//
+// These definitions come from [linux/major.h], with
+// descriptions from [scan_devices.c].
+//
+// [linux/major.h]: https://github.com/torvalds/linux/blob/0e39a731820ad26533eb988cef27ad2506063b5b/include/uapi/linux/major.h#L27
+// [scan_devices.c]: https://github.com/opus47/cdparanoia/blob/bc6a412bca35b03413b88e7ba2cb78c911f1d8f3/interface/scan_devices.c#L177
 type DriveType int
-
-// from linux/major.h, with descriptions from scan_devices.c
 
 const (
 	IDE0_MAJOR DriveType = C.IDE0_MAJOR
