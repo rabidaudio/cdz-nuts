@@ -2,40 +2,60 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/rabidaudio/cdz-nuts/spi"
+	"github.com/rabidaudio/cdz-nuts/audiocd"
 )
 
 func main() {
-	// s, err := spi.Open()
+	fmt.Printf("value: %v\n", audiocd.Version())
+	drive := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
+	// Device: "/dev/sr1",
+	// drive.LogMode = audiocd.LogModeLogger
+	// drive.Logger = log.Default()
+	err := drive.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer drive.Close()
+
+	fmt.Printf("drive: %+v | model: %v type: %v (%d) iface: %v\n", drive, drive.Model(), drive.DriveType(), int(drive.DriveType()), drive.InterfaceType())
+
+	toc := drive.TOC()
+	fmt.Printf("TOC: %+v\n", toc)
+
+	start := toc[4].StartSector
+
+	_, err = drive.Seek(int64(start), io.SeekStart)
+	if err != nil {
+		panic(err)
+	}
+
+	buf := make([]byte, toc[4].LengthSectors*audiocd.BytesPerSector)
+	read := 0
+	for read < len(buf) {
+		n, err := drive.Read(buf[read:])
+		if err != nil {
+			panic(err)
+		}
+		read += n
+	}
+
+	err = os.WriteFile("track5.cdda", buf, 0777)
+	if err != nil {
+		panic(err)
+	}
+
+	// 	s, err := spi.Open()
 	// if err != nil {
 	// 	panic(err)
 	// }
 	// defer s.Close()
 
-	f, err := os.Open("vfs/testdata/chronictown.img")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	sdev, err := spi.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer sdev.Close()
-
-	done := make(chan struct{})
-	go func() {
-		err = PollTransfer(sdev, f, done)
-	}()
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	fmt.Printf("running, ctrl-c to stop\n")
-	<-sigs
-	done <- struct{}{}
+	// dr, err := s.Query()
+	// if err != nil {
+	// 	panic(fmt.Errorf("query: %w", err))
+	// }
+	// fmt.Printf("request: %v\n", dr)
 }
