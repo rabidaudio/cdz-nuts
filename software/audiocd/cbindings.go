@@ -61,12 +61,6 @@ func openDrive(cd *AudioCD) error {
 	return nil
 }
 
-// TODO: cdda_track_copyp,cdda_track_preemp,cdda_track_channels
-
-// func (cd *AudioCD) cddaSectorGetTrack(i int) int {
-// 	return int(C.cdda_sector_gettrack((*C.cdrom_drive)(cd.drive), C.long(i)))
-// }
-
 func model(drive unsafe.Pointer) string {
 	return C.GoString((*C.cdrom_drive)(drive).drive_model)
 }
@@ -78,14 +72,6 @@ func driveType(drive unsafe.Pointer) DriveType {
 func interfaceType(drive unsafe.Pointer) InterfaceType {
 	return InterfaceType(int((*C.cdrom_drive)(drive)._interface))
 }
-
-// func (cd *AudioCD) SectorsPerRead() int {
-// 	return int((*C.cdrom_drive)(cd.drive).nsectors)
-// }
-
-// func (cd *AudioCD) SetSectorsPerRead(sectors int) {
-// 	(*C.cdrom_drive)(cd.drive).nsectors = C.int(sectors)
-// }
 
 func trackCount(d unsafe.Pointer) int {
 	return int((*C.cdrom_drive)(d).tracks)
@@ -158,6 +144,7 @@ func seekSector(cd *AudioCD, sector int32) error {
 }
 
 func readLimited(cd *AudioCD, p []byte, retries int) error {
+	// TODO: expose callback? may not be possible
 	buf := unsafe.Pointer(C.paranoia_read_limited(cd.paranoia, nil, C.int(retries)))
 	// run logs and check for errors
 	err := flushLogs(cd)

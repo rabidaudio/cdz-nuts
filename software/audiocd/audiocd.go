@@ -57,7 +57,8 @@ const BytesPerSample = 2
 // Channels is the number of audio channels in the data. All Redbook
 // audio CDs are stereo.
 //
-// [Wikipedia] notes that four-channel audio support was planned but never
+// CDParanoia source code detects 4-cannel audio on bit 8 of table of contents
+// flags. [Wikipedia] notes that four-channel audio support was planned but never
 // implemented and no known drives support it.
 //
 // [Wikipedia]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Audio_format
@@ -87,28 +88,36 @@ const SamplesPerFrame = SampleRate / SectorsPerSecond / Channels
 // data in units of sectors.
 const BytesPerSector = SampleRate * Channels * BytesPerSample / SectorsPerSecond
 
-// Flag is a set of bit flags attached to a track in the CD's
-// table of contents.
-//
-// TODO(jdk): unable find a definition of these flags
-type Flag uint8
-
-// IsAudio reports wheither the track is an audio track.
-// Mixed-mode disks can have data tracks in addition to audio tracks.
-func (t TrackPosition) IsAudio() bool {
-	return (uint8(t.Flags) & 0x04) == 0
-}
-
 // TrackPosition reports the offset information for tracks
 // from the table of contents.
 type TrackPosition struct {
-	Flags         Flag
+	Flags         uint8 // bitflag parameters
 	TrackNum      uint8 // index of the track, starting at 1
 	StartSector   int32 // address of the sector where the data starts
 	LengthSectors int32 // total number of sectors the track covers
+
+	// TODO: handle pregap?
+	// TODO: simplify int types
 }
 
-// TODO: handle pregap?
+func (t TrackPosition) IsPreemphasisEnabled() bool {
+	return (t.Flags & 0x01) != 0
+}
+
+func (t TrackPosition) IsCopyProtected() bool {
+	return (t.Flags & 0x02) != 0
+}
+
+// IsAudio reports whether the track is an audio track.
+// Mixed-mode disks can have data tracks in addition to audio tracks.
+func (t TrackPosition) IsAudio() bool {
+	return (t.Flags & 0x04) == 0
+}
+
+// ContainsSector reports whether the given sector is within the track bounds
+func (t TrackPosition) ContainsSector(sector int32) bool {
+	return sector >= t.StartSector && sector < (t.StartSector+t.LengthSectors)
+}
 
 // AudioCD reads data from a CD-DR format cd in the disk drive.
 // If Device is specified, AudioCD will read from the specified block device.
@@ -232,6 +241,26 @@ func (cd *AudioCD) LengthSectors() int32 {
 		return -1
 	}
 	return lengthSectors(cd.drive)
+}
+
+// TrackAtSector returns the number of the track that
+// contains the given sector, if any. Track numbers
+// start at 1.
+//
+// If the CD isn't open, returns -1. If the sector
+// is outside the track bounds, returns 0.
+func (cd *AudioCD) TrackAtSector(sector int32) int {
+	if !cd.IsOpen() {
+		return -1
+	}
+
+	toc := cd.TOC()
+	for _, t := range toc {
+		if t.ContainsSector(sector) {
+			return int(t.TrackNum)
+		}
+	}
+	return 0
 }
 
 // IsOpen reports whether the instance has been initialized
@@ -393,7 +422,6 @@ func (cd *AudioCD) readSectors(p []byte) (int64, error) {
 		return n + nn, err
 	}
 
-	// TODO: expose callback
 	retries := cd.MaxRetries
 	if retries < 0 {
 		retries = 0 // disable
