@@ -26,6 +26,7 @@ package audiocd
 import "C"
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -72,6 +73,10 @@ type AudioCD struct {
 	MaxRetries int         // number of repeated reads on failed sectors. Set to -1 to disable retries. If 0, the default of 20 will be used
 	LogMode    LogMode     // direct the library logs
 	Logger     *log.Logger // if LogMode == LogModeLogger, the log.Logger to use
+
+	buf            bytes.Buffer
+	bufferedOffset int64
+	trueOffset     int64
 
 	drive    unsafe.Pointer // *C.cdrom_drive
 	paranoia unsafe.Pointer // *C.cdrom_paranoia
@@ -126,11 +131,15 @@ func (cd *AudioCD) Open() error {
 	if err != nil {
 		return err
 	}
-	_, err = cd.Seek(0, io.SeekStart)
+	err = cd.seekSector(0)
+	cd.bufferedOffset = 0
+	cd.trueOffset = 0
 	if err != nil {
 		return err
 	}
 	cd.SetParanoiaMode(ParanoiaModeFull)
+	cd.buf.Truncate(0)
+	cd.buf.Grow(BytesPerSector)
 	return nil
 }
 
@@ -281,18 +290,69 @@ func (cd *AudioCD) SetSpeed(x int) error {
 	return err
 }
 
-// Seek provides access to the cursor position in the data.
+// TODO: separate C-calling methods from Go methods
+
+// Seek provides access to the cursor position for reading audio data.
+// It allows seeking to arbitrary sub-sector byte offsets.
 func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
-	// TODO: seeks sectors not bytes
+	var newoffset int64
+	switch whence {
+	case io.SeekCurrent:
+		newoffset = cd.trueOffset + offset
+	case io.SeekEnd:
+		end := int64(cd.LengthSectors() * BytesPerSector)
+		newoffset = end + offset
+	default:
+		newoffset = offset
+	}
+
+	if newoffset == cd.trueOffset {
+		// nothing to do
+		return cd.trueOffset, nil
+	}
+
+	if newoffset > cd.trueOffset && newoffset < cd.bufferedOffset {
+		// can use data already in buffer
+		_ = cd.buf.Next(int(newoffset - cd.trueOffset)) // empty the buffer up to current point
+		cd.trueOffset = newoffset
+		return cd.trueOffset, nil
+	}
+
+	// otherwise we're going to need to wipe buffer and seek
+	cd.buf.Truncate(0) // wipe buffered data
+	cd.trueOffset = cd.bufferedOffset
+	secoffset := newoffset - (newoffset % BytesPerSector)
+	err := cd.seekSector(int32(secoffset / BytesPerSector))
+	if err != nil {
+		cd.trueOffset = cd.bufferedOffset
+		return cd.trueOffset, err
+	}
+	err = cd.bufferSectors(1)
+	cd.trueOffset = cd.bufferedOffset
+	if err != nil {
+		return cd.trueOffset, err
+	}
+	// seek buffer ahead to sub-sector offset
+	_ = cd.buf.Next(int(newoffset - secoffset))
+	cd.trueOffset = newoffset
+	return cd.trueOffset, nil
+}
+
+// SeekToSector seeks the cd to the specfied sector index.
+// This is useful for going to the start of a track.
+func (cd *AudioCD) SeekToSector(sector int32) (int64, error) {
+	return cd.Seek(int64(sector)*BytesPerSector, io.SeekStart)
+}
+
+func (cd *AudioCD) seekSector(sector int32) error {
 	if !cd.IsOpen() {
-		return 0, os.ErrClosed
+		return os.ErrClosed
 	}
 
 	defer cd.flushLogs()
-	res := int64(C.paranoia_seek(cd.paranoia, C.long(offset), C.int(whence)))
+	res := int64(C.paranoia_seek(cd.paranoia, C.long(sector), C.int(io.SeekStart)))
 	if res < 0 {
-		err := AudioCDError(-1 * res)
-		return res, err
+		return AudioCDError(-1 * res)
 	}
 	return res, nil
 }
@@ -305,6 +365,34 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 // PCM data is signed 16-bit samples. Data will be in host byte order,
 // regardless of drive endianness.
 func (cd *AudioCD) Read(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	// if there's data available in the buffer, return just that
+	if cd.buf.Len() > 0 {
+		n = len(p)
+		if n > cd.buf.Len() {
+			n = cd.buf.Len()
+		}
+		copy(p[:n], cd.buf.Next(n))
+		cd.trueOffset += int64(n)
+
+		// if more was requested, continue reading
+		nn, err := cd.Read(p[n:])
+		return n + nn, err
+	}
+
+	// otherwise load data into the buffer
+	nsectors := (len(p) / BytesPerSector) + 1
+	err = cd.bufferSectors(nsectors)
+	if err != nil {
+		return 0, err
+	}
+	// recurse to load said data from buffer
+	return cd.Read(p)
+}
+
+func (cd *AudioCD) readSectors(p []byte) (int64, error) {
 	if !cd.IsOpen() {
 		return 0, os.ErrClosed
 	}
@@ -316,9 +404,18 @@ func (cd *AudioCD) Read(p []byte) (n int, err error) {
 	if int32(len(p))%BytesPerSector != 0 {
 		return 0, fmt.Errorf("audiocd: must read complete sectors")
 	}
+
 	if int32(len(p)) > BytesPerSector {
-		return cd.Read(p[:BytesPerSector])
+		// read one sector
+		n, err := cd.readSectors(p[:BytesPerSector])
+		if err != nil {
+			return n, err
+		}
+		// read remaining sectors
+		nn, err := cd.readSectors(p[BytesPerSector:])
+		return n + nn, err
 	}
+
 	// TODO: expose callback
 	retries := cd.MaxRetries
 	if retries < 0 {
@@ -328,7 +425,7 @@ func (cd *AudioCD) Read(p []byte) (n int, err error) {
 	}
 	buf := unsafe.Pointer(C.paranoia_read_limited(cd.paranoia, nil, C.int(retries)))
 	// run logs and check for errors
-	err = cd.flushLogs()
+	err := cd.flushLogs()
 	if err != nil {
 		return 0, err
 	}
@@ -339,7 +436,15 @@ func (cd *AudioCD) Read(p []byte) (n int, err error) {
 	res := C.GoBytes(buf, C.int(BytesPerSector))
 	// copy data into provided buffer, since paranoia will reclaim buffer
 	copy(p, res)
-	return int(BytesPerSector), nil
+	return BytesPerSector, nil
+}
+
+func (cd *AudioCD) bufferSectors(nsectors int) error {
+	p := make([]byte, nsectors*BytesPerSector)
+	n, err := cd.readSectors(p)
+	cd.bufferedOffset += n
+	cd.buf.Write(p[:n])
+	return err
 }
 
 // Close releases access to the cd drive. Data can no longer be accessed
@@ -359,6 +464,7 @@ func (cd *AudioCD) Close() error {
 	// }
 	cd.paranoia = nil
 	cd.drive = nil
+	cd.buf.Truncate(0)
 	return nil
 }
 

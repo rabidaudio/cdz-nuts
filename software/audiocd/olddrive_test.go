@@ -1,6 +1,7 @@
 package audiocd
 
 import (
+	"io"
 	"os"
 	"testing"
 
@@ -114,6 +115,10 @@ func TestRipTrack5(t *testing.T) {
 
 	start := toc[4].StartSector
 	end := start + toc[4].LengthSectors
+
+	n, err := drive.Seek(int64(start*BytesPerSector), io.SeekStart)
+	failIfErr(t, err)
+	assert.Equal(t, start, n)
 
 	buf := make([]byte, (end-start)*BytesPerSector)
 	read := 0
