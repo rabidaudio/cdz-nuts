@@ -1,15 +1,7 @@
 package main
 
-import (
-	"fmt"
-	"io"
-	"os"
-
-	"github.com/rabidaudio/cdz-nuts/audiocd"
-)
-
 func main() {
-	fmt.Printf("value: %v\n", audiocd.Version())
+	/*fmt.Printf("value: %v\n", audiocd.Version())
 	drive := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
 	// Device: "/dev/sr1",
 	// drive.LogMode = audiocd.LogModeLogger
@@ -45,7 +37,7 @@ func main() {
 	err = os.WriteFile("track5.cdda", buf, 0777)
 	if err != nil {
 		panic(err)
-	}
+	}*/
 
 	// 	s, err := spi.Open()
 	// if err != nil {
