@@ -1,6 +1,7 @@
 package audiocd
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"testing"
@@ -29,7 +30,6 @@ func TestOldDriveInfo(t *testing.T) {
 	assert.Equal(t, "MATSHITA UJDA775 DVD/CDRW 1.00 ", drive.Model())
 	assert.Equal(t, SCSI_CDROM_MAJOR, drive.DriveType())
 	assert.Equal(t, SGIO_SCSI, drive.InterfaceType())
-	// assert.Equal(t, 27, drive.SectorsPerRead())
 	assert.Equal(t, 5, drive.TrackCount())
 	assert.Equal(t, int32(0), drive.FirstAudioSector())
 
@@ -132,5 +132,30 @@ func TestRipTrack5(t *testing.T) {
 	assert.Equal(t, len(buf), read)
 
 	err = os.WriteFile("track5.cdda", buf, 0777)
+	failIfErr(t, err)
+}
+
+func TestRipEvery10s(t *testing.T) {
+	drive := AudioCD{Device: "/dev/sr1"}
+	err := drive.Open()
+	failIfErr(t, err)
+	defer drive.Close()
+
+	buf := bytes.Buffer{}
+
+	step := int32(10 * FramesPerSecond)
+	for i := range drive.LengthSectors() / step {
+		_, err := drive.SeekToSector(i)
+		failIfErr(t, err)
+
+		buf.Grow(int(step * BytesPerSector))
+		b := buf.AvailableBuffer()
+		_, err = drive.Read(b[:step*BytesPerSector])
+		failIfErr(t, err)
+
+		buf.Write(b[:step*BytesPerSector])
+	}
+
+	err = os.WriteFile("steps.cdda", buf.Bytes(), 0777)
 	failIfErr(t, err)
 }

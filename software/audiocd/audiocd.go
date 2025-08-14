@@ -11,27 +11,12 @@
 // [CDParanoia]: https://xiph.org/paranoia/index.html
 package audiocd
 
-// #cgo LDFLAGS: -lcdda_interface -lcdda_paranoia
-// #include <stdint.h>
-// #include <stdlib.h>
-// #include <cdda_interface.h>
-// #include <cdda_paranoia.h>
-//
-// /* Calling C function pointers from Go is not supported,
-//    but this is a workaround. See https://pkg.go.dev/cmd/cgo */
-// typedef int (*set_speed_fn) (struct cdrom_drive *d, int speed);
-// int bridge_set_speed(set_speed_fn f, struct cdrom_drive *d, int speed) {
-//   return f(d, speed);
-// }
-import "C"
-
 import (
 	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"unsafe"
 )
 
@@ -48,16 +33,82 @@ const (
 type ParanoiaFlags int
 
 const (
-	ParanoiaModeFull    ParanoiaFlags = C.PARANOIA_MODE_FULL    // enable all error checking features
-	ParanoiaModeDisable ParanoiaFlags = C.PARANOIA_MODE_DISABLE // disable all error checking features
+	ParanoiaModeFull    ParanoiaFlags = pFull    // enable all error checking features
+	ParanoiaModeDisable ParanoiaFlags = pDisable // disable all error checking features
 
-	ParanoiaVerify    ParanoiaFlags = C.PARANOIA_MODE_VERIFY
-	ParanoiaFragment  ParanoiaFlags = C.PARANOIA_MODE_FRAGMENT
-	ParanoiaOverlap   ParanoiaFlags = C.PARANOIA_MODE_OVERLAP
-	ParanoiaScratch   ParanoiaFlags = C.PARANOIA_MODE_SCRATCH
-	ParanoiaRepair    ParanoiaFlags = C.PARANOIA_MODE_REPAIR
-	ParanoiaNeverSkip ParanoiaFlags = C.PARANOIA_MODE_NEVERSKIP
+	ParanoiaVerify    ParanoiaFlags = pVerify
+	ParanoiaFragment  ParanoiaFlags = pFragment
+	ParanoiaOverlap   ParanoiaFlags = pOverlap
+	ParanoiaScratch   ParanoiaFlags = pScratch
+	ParanoiaRepair    ParanoiaFlags = pRepair
+	ParanoiaNeverSkip ParanoiaFlags = pNeverSkip
 )
+
+// FullSpeed can be passed to [SetSpeed] to run the drive at its fastest speed.
+const FullSpeed = -1
+
+// SampleRate is the number of samples per second. All Redbook audio
+// CDs use at 44.1KHz.
+const SampleRate = 44100
+
+// BytesPerSample is 2 bytes, representing signed 16-bit samples.
+const BytesPerSample = 2
+
+// Channels is the number of audio channels in the data. All Redbook
+// audio CDs are stereo.
+//
+// [Wikipedia] notes that four-channel audio support was planned but never
+// implemented and no known drives support it.
+//
+// [Wikipedia]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Audio_format
+const Channels = 2
+
+// SectorsPerSecond is the number of audio frames in one second of audio.
+// An audio frame is the smallest valid unit of length for a track, defined
+// as 1/75th of a second. Redbook track offsets are specified in MM:SS:FF.
+//
+// Note that this definition of frame is interchangeable with sector.
+// It is distinct from a 33-byte channel data frame, which this package does
+// not concern itself with.
+//
+// For more information, see [Wikipdia].
+//
+// [Wikipdia]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Frames_and_timecode_frames
+const SectorsPerSecond = 75
+
+// SamplesPerFrame is the number of 16-bit audio samples per channel
+// that appear within one frame of data (294).
+const SamplesPerFrame = SampleRate / SectorsPerSecond / Channels
+
+// BytesPerSector is the number of bytes of audio contained in one sector of
+// CD data (and equivalently in one frame of samples), 2352 bytes.
+//
+// Sectors are the unit of interest when reading data from CDs. AudioCD reads
+// data in units of sectors.
+const BytesPerSector = SampleRate * Channels * BytesPerSample / SectorsPerSecond
+
+// Flag is a set of bit flags attached to a track in the CD's
+// table of contents.
+//
+// TODO(jdk): unable find a definition of these flags
+type Flag uint8
+
+// IsAudio reports wheither the track is an audio track.
+// Mixed-mode disks can have data tracks in addition to audio tracks.
+func (t TrackPosition) IsAudio() bool {
+	return (uint8(t.Flags) & 0x04) == 0
+}
+
+// TrackPosition reports the offset information for tracks
+// from the table of contents.
+type TrackPosition struct {
+	Flags         Flag
+	TrackNum      uint8 // index of the track, starting at 1
+	StartSector   int32 // address of the sector where the data starts
+	LengthSectors int32 // total number of sectors the track covers
+}
+
+// TODO: handle pregap?
 
 // AudioCD reads data from a CD-DR format cd in the disk drive.
 // If Device is specified, AudioCD will read from the specified block device.
@@ -85,9 +136,6 @@ type AudioCD struct {
 // ensure interface conformation
 var _ io.ReadSeekCloser = (*AudioCD)(nil)
 
-// FullSpeed can be passed to [SetSpeed] to run the drive at its fastest speed.
-const FullSpeed = -1
-
 // Open determines the properties of the drive and detects
 // the audio cd. This method must be called before information
 // about the drive and cd can be accessed and before data can
@@ -104,80 +152,49 @@ func (cd *AudioCD) Open() error {
 		return nil
 	}
 
-	logLevel, logFlush := prepareLogs(cd.LogMode, cd.Logger)
-	var p *C.char
-	defer logFlush(unsafe.Pointer(p))
-
-	var drive *C.cdrom_drive
-	if cd.Device == "" {
-		drive = C.cdda_find_a_cdrom(logLevel, &p)
-	} else {
-		str := C.CString(cd.Device)
-		defer C.free(unsafe.Pointer(str))
-		drive = C.cdda_identify(str, logLevel, &p)
-	}
-
-	if drive == nil {
-		return ErrNoDrive
-	}
-
-	if err, ok := parseError(C.cdda_open(drive)); !ok {
-		return err
-	}
-	cd.drive = unsafe.Pointer(drive)
-	cd.paranoia = C.paranoia_init(drive)
-
-	err := cd.SetSpeed(FullSpeed)
+	err := openDrive(cd)
 	if err != nil {
 		return err
 	}
-	err = cd.seekSector(0)
-	cd.bufferedOffset = 0
-	cd.trueOffset = 0
+	err = cd.SetSpeed(FullSpeed)
 	if err != nil {
 		return err
 	}
-	cd.SetParanoiaMode(ParanoiaModeFull)
+
 	cd.buf.Truncate(0)
 	cd.buf.Grow(BytesPerSector)
+	cd.bufferedOffset = 0
+	cd.trueOffset = 0
+	err = seekSector(cd, 0)
+	if err != nil {
+		return err
+	}
+
+	cd.SetParanoiaMode(ParanoiaModeFull)
 	return nil
 }
-
-// TODO: cdda_track_copyp,cdda_track_preemp,cdda_track_channels
-
-// func (cd *AudioCD) cddaSectorGetTrack(i int) int {
-// 	return int(C.cdda_sector_gettrack((*C.cdrom_drive)(cd.drive), C.long(i)))
-// }
 
 // Model returns information about the cd drive's manufacturer and model number.
 func (cd *AudioCD) Model() string {
 	if !cd.IsOpen() {
 		return ""
 	}
-	return C.GoString((*C.cdrom_drive)(cd.drive).drive_model)
+	return model(cd.drive)
 }
 
 func (cd *AudioCD) DriveType() DriveType {
 	if !cd.IsOpen() {
 		return -1
 	}
-	return DriveType(int((*C.cdrom_drive)(cd.drive).drive_type))
+	return driveType(cd.drive)
 }
 
 func (cd *AudioCD) InterfaceType() InterfaceType {
 	if !cd.IsOpen() {
 		return -1
 	}
-	return InterfaceType(int((*C.cdrom_drive)(cd.drive)._interface))
+	return interfaceType(cd.drive)
 }
-
-// func (cd *AudioCD) SectorsPerRead() int {
-// 	return int((*C.cdrom_drive)(cd.drive).nsectors)
-// }
-
-// func (cd *AudioCD) SetSectorsPerRead(sectors int) {
-// 	(*C.cdrom_drive)(cd.drive).nsectors = C.int(sectors)
-// }
 
 // TrackCount returns number of audio tracks on the disk.
 // The CD-DA format supports a maximum of 99 tracks.
@@ -185,7 +202,7 @@ func (cd *AudioCD) TrackCount() int {
 	if !cd.IsOpen() {
 		return -1
 	}
-	return int((*C.cdrom_drive)(cd.drive).tracks)
+	return trackCount(cd.drive)
 }
 
 // FirstAudioSector returns the sector index of the first track.
@@ -193,7 +210,7 @@ func (cd *AudioCD) FirstAudioSector() int32 {
 	if !cd.IsOpen() {
 		return -1
 	}
-	return int32((*C.cdrom_drive)(cd.drive).audio_first_sector)
+	return firstAudioSector(cd.drive)
 }
 
 // TOC returns the table of contents from the disk.
@@ -205,28 +222,7 @@ func (cd *AudioCD) TOC() []TrackPosition {
 	if !cd.IsOpen() {
 		return nil
 	}
-	drive := (*C.cdrom_drive)(cd.drive)
-	ctoc := drive.disc_toc
-
-	// NOTE: the end of the last track is the first sector
-	// of the imaginary track after
-	toc := make([]TrackPosition, cd.TrackCount()+1)
-	audiolen := toc[len(toc)-1].StartSector
-	for i := range toc {
-		toc[i].Flags = Flag(ctoc[i].bFlags)
-		toc[i].TrackNum = uint8(ctoc[i].bTrack)
-		toc[i].StartSector = int32(ctoc[i].dwStartSector)
-	}
-	// compute lengths
-	if len(toc) == 1 {
-		toc[0].LengthSectors = audiolen
-	} else {
-		for i := range toc[1:] {
-			toc[i].LengthSectors = toc[i+1].StartSector - toc[i].StartSector
-		}
-	}
-
-	return toc[:cd.TrackCount()]
+	return toc(cd.drive, cd.TrackCount())
 }
 
 // LengthSectors returns the total number of sectors on the disk
@@ -235,8 +231,7 @@ func (cd *AudioCD) LengthSectors() int32 {
 	if !cd.IsOpen() {
 		return -1
 	}
-	ctoc := (*C.cdrom_drive)(cd.drive).disc_toc
-	return int32(ctoc[cd.TrackCount()].dwStartSector)
+	return lengthSectors(cd.drive)
 }
 
 // IsOpen reports whether the instance has been initialized
@@ -247,7 +242,7 @@ func (cd *AudioCD) IsOpen() bool {
 	if cd.drive == nil {
 		return false
 	}
-	return int((*C.cdrom_drive)(cd.drive).opened) != 0
+	return opened(cd.drive)
 }
 
 // SetParanoiaMode sets how "paranoid" audiocd will be about error
@@ -256,9 +251,7 @@ func (cd *AudioCD) IsOpen() bool {
 // disables all checks. Individual checks can be enabled, e.g.
 // ParanoiaRepair|ParanoiaNeverSkip.
 func (cd *AudioCD) SetParanoiaMode(flags ParanoiaFlags) {
-	defer cd.flushLogs()
-
-	C.paranoia_modeset(cd.paranoia, C.int(flags))
+	setParanoia(cd, flags)
 }
 
 // ForceSearchOverlap sets the minimum number of sectors to search
@@ -270,9 +263,8 @@ func (cd *AudioCD) ForceSearchOverlap(sectors int32) error {
 	if sectors < 0 || sectors > 75 {
 		return fmt.Errorf("audiocd: search overlap sectors must be 0 <= n <= 75")
 	}
-	defer cd.flushLogs()
 
-	C.paranoia_overlapset(cd.paranoia, C.long(sectors))
+	overlapSet(cd, sectors)
 	return nil
 }
 
@@ -283,18 +275,16 @@ func (cd *AudioCD) SetSpeed(x int) error {
 	if !cd.IsOpen() {
 		return os.ErrClosed
 	}
-
-	defer cd.flushLogs()
-	drive := (*C.cdrom_drive)(cd.drive)
-	err, _ := parseError(C.bridge_set_speed(drive.set_speed, drive, C.int(x)))
-	return err
+	return setSpeed(cd, x)
 }
-
-// TODO: separate C-calling methods from Go methods
 
 // Seek provides access to the cursor position for reading audio data.
 // It allows seeking to arbitrary sub-sector byte offsets.
 func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
+	if !cd.IsOpen() {
+		return cd.trueOffset, os.ErrClosed
+	}
+
 	var newoffset int64
 	switch whence {
 	case io.SeekCurrent:
@@ -322,7 +312,8 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 	cd.buf.Truncate(0) // wipe buffered data
 	cd.trueOffset = cd.bufferedOffset
 	secoffset := newoffset - (newoffset % BytesPerSector)
-	err := cd.seekSector(int32(secoffset / BytesPerSector))
+
+	err := seekSector(cd, int32(secoffset/BytesPerSector))
 	if err != nil {
 		cd.trueOffset = cd.bufferedOffset
 		return cd.trueOffset, err
@@ -342,19 +333,6 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 // This is useful for going to the start of a track.
 func (cd *AudioCD) SeekToSector(sector int32) (int64, error) {
 	return cd.Seek(int64(sector)*BytesPerSector, io.SeekStart)
-}
-
-func (cd *AudioCD) seekSector(sector int32) error {
-	if !cd.IsOpen() {
-		return os.ErrClosed
-	}
-
-	defer cd.flushLogs()
-	res := int64(C.paranoia_seek(cd.paranoia, C.long(sector), C.int(io.SeekStart)))
-	if res < 0 {
-		return AudioCDError(-1 * res)
-	}
-	return res, nil
 }
 
 // Read reads PCM audio data from the disk.
@@ -400,7 +378,6 @@ func (cd *AudioCD) readSectors(p []byte) (int64, error) {
 		return 0, nil
 	}
 
-	// TODO: maintain a read-ahead buffer to allow sub-sector reads
 	if int32(len(p))%BytesPerSector != 0 {
 		return 0, fmt.Errorf("audiocd: must read complete sectors")
 	}
@@ -423,19 +400,7 @@ func (cd *AudioCD) readSectors(p []byte) (int64, error) {
 	} else if retries == 0 {
 		retries = 20 // default value
 	}
-	buf := unsafe.Pointer(C.paranoia_read_limited(cd.paranoia, nil, C.int(retries)))
-	// run logs and check for errors
-	err := cd.flushLogs()
-	if err != nil {
-		return 0, err
-	}
-	if buf == nil {
-		return 0, fmt.Errorf("audiocd: unknown error")
-	}
-
-	res := C.GoBytes(buf, C.int(BytesPerSector))
-	// copy data into provided buffer, since paranoia will reclaim buffer
-	copy(p, res)
+	readLimited(cd, p, retries)
 	return BytesPerSector, nil
 }
 
@@ -453,15 +418,12 @@ func (cd *AudioCD) bufferSectors(nsectors int) error {
 // Close this does not refer to controlling the drive tray.
 func (cd *AudioCD) Close() error {
 	if cd.IsOpen() {
-		C.cdda_close((*C.cdrom_drive)(cd.drive))
+		closeDrive(cd.drive)
 	}
 	if cd.paranoia != nil {
-		C.paranoia_free(cd.paranoia)
+		paranoiaFree(cd.paranoia)
 	}
-	// this doesn't seem to be necessary, and can cause double-free's
-	// if cd.drive != nil {
-	// 	C.free(cd.drive)
-	// }
+
 	cd.paranoia = nil
 	cd.drive = nil
 	cd.buf.Truncate(0)
@@ -470,65 +432,5 @@ func (cd *AudioCD) Close() error {
 
 // Version returns the libcdparanoia version string.
 func Version() string {
-	return C.GoString(C.paranoia_version())
-}
-
-func parseError(retval C.int) (err error, ok bool) {
-	if retval == 0 {
-		return nil, true
-	}
-	i := int(retval)
-	if i < 0 {
-		i = -1 * i
-	}
-	return AudioCDError(i), false
-}
-
-func prepareLogs(lm LogMode, logger *log.Logger) (C.int, func(unsafe.Pointer)) {
-	nopLogFlush := func(p unsafe.Pointer) {}
-	switch lm {
-	case LogModeStdErr:
-		return C.int(LogModeStdErr), nopLogFlush
-	case LogModeLogger:
-		if logger != nil {
-			return C.int(LogModeLogger), func(p unsafe.Pointer) {
-				if logger != nil && p != nil {
-					str := C.GoString((*C.char)(p))
-					for line := range strings.Lines(str) {
-						logger.Print(line)
-					}
-					C.free(p)
-				}
-			}
-		}
-	}
-	return C.int(LogModeSilent), nopLogFlush
-}
-
-func (cd *AudioCD) flushLogs() (err error) {
-	drive := (*C.cdrom_drive)(cd.drive)
-
-	errstring := C.cdda_errors(drive)
-	if errstring != nil {
-		err = fmt.Errorf("audiocd: %v", C.GoString(errstring))
-	}
-
-	logger := cd.Logger
-	if cd.LogMode != LogModeLogger || logger == nil {
-		return
-	}
-
-	if errstring != nil {
-		for line := range strings.Lines(C.GoString(errstring)) {
-			logger.Print(line)
-		}
-	}
-
-	msgstring := C.cdda_messages(drive)
-	if msgstring != nil {
-		for line := range strings.Lines(C.GoString(msgstring)) {
-			logger.Print(line)
-		}
-	}
-	return
+	return version()
 }
