@@ -1,4 +1,4 @@
-package spi
+package main
 
 import (
 	"encoding/binary"
@@ -78,7 +78,7 @@ func (*Spi) Query() (dr DataRequest, err error) {
 }
 
 // NOTE: only use writer interface if data has been requested!
-func Write(p []byte) (n int, err error) {
+func (*Spi) Write(p []byte) (n int, err error) {
 	rpio.SpiTransmit(p...)
 	return len(p), nil
 }
