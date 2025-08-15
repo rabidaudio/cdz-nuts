@@ -1,4 +1,4 @@
-package spi
+package main
 
 import (
 	"encoding/binary"

@@ -11,8 +11,18 @@ import (
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/diskfs/go-diskfs/filesystem/fat32"
 	"github.com/diskfs/go-diskfs/partition/mbr"
-	"github.com/rabidaudio/cdz-nuts/cd"
 )
+
+type Track struct {
+	io.ReadSeeker
+	Filename     string
+	LengthFrames uint
+}
+
+type CD struct {
+	Name   string
+	Tracks []Track
+}
 
 const DISK_SIZE = 700 * fat32.MB
 const SECTOR_SIZE = 512
@@ -22,7 +32,7 @@ const SECTOR_SIZE = 512
 type Filesystem struct {
 	fs      filesystem.FileSystem
 	Path    string
-	cd      *cd.CD
+	cd      *CD
 	closefn func() error
 }
 
@@ -42,7 +52,7 @@ func sanitizeName(name string) string {
 	return string(newName)
 }
 
-func trackSizeBytes(t *cd.Track) int64 {
+func trackSizeBytes(t *Track) int64 {
 	// TODO: include metadata, artifical track predelay
 	// 6 samples per channel per frame, 16 bits per sample plus 44 header
 	return int64(t.LengthFrames*6*2) + 44
@@ -117,7 +127,7 @@ func Create() (*Filesystem, error) {
 }
 
 // Create virtual files based on the CD configuration
-func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
+func (f *Filesystem) LoadCD(cd CD) (err error) {
 	if f.cd != nil {
 		return fmt.Errorf("current CD not ejected")
 	}
@@ -168,7 +178,7 @@ func (f *Filesystem) LoadCD(cd cd.CD) (err error) {
 	return nil
 }
 
-func dirName(cd cd.CD) string {
+func dirName(cd CD) string {
 	sDirName := sanitizeName(cd.Name)
 	if sDirName != "" {
 		sDirName = "/" + sDirName
@@ -176,7 +186,7 @@ func dirName(cd cd.CD) string {
 	return sDirName
 }
 
-func trackPath(cd cd.CD, i int) (string, bool) {
+func trackPath(cd CD, i int) (string, bool) {
 	if i < 0 || i >= len(cd.Tracks) {
 		return "", false
 	}

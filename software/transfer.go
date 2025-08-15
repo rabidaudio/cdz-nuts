@@ -6,11 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/rabidaudio/cdz-nuts/spi"
 	"github.com/rabidaudio/cdz-nuts/vfs"
 )
 
-func PollTransfer(s *spi.Spi, f *os.File, close chan struct{}) error {
+func PollTransfer(s *Spi, f *os.File, close chan struct{}) error {
 	for {
 		select {
 		case <-time.After(time.Millisecond):

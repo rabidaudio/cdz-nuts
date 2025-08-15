@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rabidaudio/cdz-nuts/cd"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,9 +53,9 @@ func copyFile(srcpath, dstpath string) (err error) {
 	return err
 }
 
-var CHRONIC_TOWN = cd.CD{
+var CHRONIC_TOWN = CD{
 	Name: "R.E.M. - Chronic Town",
-	Tracks: []cd.Track{
+	Tracks: []Track{
 		{
 			Filename:     "Wolves, Lower",
 			LengthFrames: secondsToFrames(4, 15),
@@ -90,8 +89,8 @@ func TestLoadCD(t *testing.T) {
 }
 
 func TestFileSize(t *testing.T) {
-	cd := cd.CD{
-		Tracks: []cd.Track{
+	cd := CD{
+		Tracks: []Track{
 			{
 				Filename:     "Track 1",
 				LengthFrames: 1337,
