@@ -12,18 +12,6 @@ func init() {
 	fmt.Fprintln(os.Stderr, "NOTE: audiocd is only supported on linux. You are operating on a mock implementation for testing which returns white noise.")
 }
 
-const (
-	pDisable = iota
-	pVerify
-	pFragment
-	pOverlap
-	pScratch
-	pRepair
-	pNeverSkip
-
-	pFull = 0xFF
-)
-
 func openDrive(cd *AudioCD) error {
 	// pretend to be open by keeping a pointer to self
 	cd.drive = unsafe.Pointer(cd)

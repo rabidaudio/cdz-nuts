@@ -7,6 +7,7 @@ package audiocd
 // #cgo LDFLAGS: -lcdda_interface -lcdda_paranoia
 // #include <stdint.h>
 // #include <stdlib.h>
+// #include <linux/major.h>
 // #include <cdda_interface.h>
 // #include <cdda_paranoia.h>
 //
@@ -24,17 +25,6 @@ import (
 	"log"
 	"strings"
 	"unsafe"
-)
-
-const (
-	pFull      = C.PARANOIA_MODE_FULL
-	pDisable   = C.PARANOIA_MODE_DISABLE
-	pVerify    = C.PARANOIA_MODE_VERIFY
-	pFragment  = C.PARANOIA_MODE_FRAGMENT
-	pOverlap   = C.PARANOIA_MODE_OVERLAP
-	pScratch   = C.PARANOIA_MODE_SCRATCH
-	pRepair    = C.PARANOIA_MODE_REPAIR
-	pNeverSkip = C.PARANOIA_MODE_NEVERSKIP
 )
 
 const (

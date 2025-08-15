@@ -33,15 +33,15 @@ const (
 type ParanoiaFlags int
 
 const (
-	ParanoiaModeFull    ParanoiaFlags = pFull    // enable all error checking features
-	ParanoiaModeDisable ParanoiaFlags = pDisable // disable all error checking features
+	ParanoiaModeFull    ParanoiaFlags = 0xFF // enable all error checking features
+	ParanoiaModeDisable ParanoiaFlags = 0x00 // disable all error checking features
 
-	ParanoiaVerify    ParanoiaFlags = pVerify
-	ParanoiaFragment  ParanoiaFlags = pFragment
-	ParanoiaOverlap   ParanoiaFlags = pOverlap
-	ParanoiaScratch   ParanoiaFlags = pScratch
-	ParanoiaRepair    ParanoiaFlags = pRepair
-	ParanoiaNeverSkip ParanoiaFlags = pNeverSkip
+	ParanoiaVerify    ParanoiaFlags = (1 << 0)
+	ParanoiaFragment  ParanoiaFlags = (1 << 1)
+	ParanoiaOverlap   ParanoiaFlags = (1 << 2)
+	ParanoiaScratch   ParanoiaFlags = (1 << 3)
+	ParanoiaRepair    ParanoiaFlags = (1 << 4)
+	ParanoiaNeverSkip ParanoiaFlags = (1 << 5)
 )
 
 // InterfaceType represents the driver implementation used
