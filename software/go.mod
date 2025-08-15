@@ -20,6 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rabidaudio/audiocd v0.0.0-20250815033711-90e7a4fea741 // indirect
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8 // indirect
