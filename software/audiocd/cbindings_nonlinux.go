@@ -35,16 +35,16 @@ func trackCount(d unsafe.Pointer) int {
 	return 10
 }
 
-func firstAudioSector(d unsafe.Pointer) int32 {
+func firstAudioSector(d unsafe.Pointer) int {
 	return 0
 }
 
 func toc(d unsafe.Pointer, ntracks int) []TrackPosition {
 	tp := make([]TrackPosition, 10)
-	len := int32(SectorsPerSecond * 3 * 60)
-	pos := int32(0)
+	len := SectorsPerSecond * 3 * 60
+	pos := 0
 	for i, t := range tp {
-		t.TrackNum = uint8(i + 1)
+		t.TrackNum = i + 1
 		t.Flags = 0
 		t.StartSector = pos
 		t.LengthSectors = len
@@ -53,8 +53,8 @@ func toc(d unsafe.Pointer, ntracks int) []TrackPosition {
 	return tp
 }
 
-func lengthSectors(d unsafe.Pointer) int32 {
-	return int32(SectorsPerSecond * 3 * 60 * 10)
+func lengthSectors(d unsafe.Pointer) int {
+	return SectorsPerSecond * 3 * 60 * 10
 }
 
 func opened(d unsafe.Pointer) bool {
@@ -63,13 +63,13 @@ func opened(d unsafe.Pointer) bool {
 
 func setParanoia(cd *AudioCD, flags ParanoiaFlags) {}
 
-func overlapSet(cd *AudioCD, sectors int32) {}
+func overlapSet(cd *AudioCD, sectors int) {}
 
 func setSpeed(cd *AudioCD, x int) error {
 	return nil
 }
 
-func seekSector(cd *AudioCD, sector int32) error {
+func seekSector(cd *AudioCD, sector int) error {
 	return nil
 }
 

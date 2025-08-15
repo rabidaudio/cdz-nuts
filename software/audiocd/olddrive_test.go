@@ -143,7 +143,7 @@ func TestRipEvery10s(t *testing.T) {
 
 	buf := bytes.Buffer{}
 
-	step := int32(10 * SectorsPerSecond)
+	step := 10 * SectorsPerSecond
 	len := SectorsPerSecond * BytesPerSector
 	for i := range drive.LengthSectors() / step {
 		_, err := drive.SeekToSector(i * step)

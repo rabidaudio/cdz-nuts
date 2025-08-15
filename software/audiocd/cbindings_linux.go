@@ -104,19 +104,19 @@ func model(drive unsafe.Pointer) string {
 }
 
 func driveType(drive unsafe.Pointer) DriveType {
-	return DriveType(int((*C.cdrom_drive)(drive).drive_type))
+	return DriveType((*C.cdrom_drive)(drive).drive_type)
 }
 
 func interfaceType(drive unsafe.Pointer) InterfaceType {
-	return InterfaceType(int((*C.cdrom_drive)(drive)._interface))
+	return InterfaceType((*C.cdrom_drive)(drive)._interface)
 }
 
 func trackCount(d unsafe.Pointer) int {
 	return int((*C.cdrom_drive)(d).tracks)
 }
 
-func firstAudioSector(d unsafe.Pointer) int32 {
-	return int32((*C.cdrom_drive)(d).audio_first_sector)
+func firstAudioSector(d unsafe.Pointer) int {
+	return int((*C.cdrom_drive)(d).audio_first_sector)
 }
 
 func toc(d unsafe.Pointer, ntracks int) []TrackPosition {
@@ -129,9 +129,9 @@ func toc(d unsafe.Pointer, ntracks int) []TrackPosition {
 	audiolen := toc[len(toc)-1].StartSector
 
 	for i := range toc {
-		toc[i].Flags = uint8(ctoc[i].bFlags)
-		toc[i].TrackNum = uint8(ctoc[i].bTrack)
-		toc[i].StartSector = int32(ctoc[i].dwStartSector)
+		toc[i].Flags = byte(ctoc[i].bFlags)
+		toc[i].TrackNum = int(ctoc[i].bTrack)
+		toc[i].StartSector = int(ctoc[i].dwStartSector)
 	}
 
 	// compute lengths
@@ -145,9 +145,9 @@ func toc(d unsafe.Pointer, ntracks int) []TrackPosition {
 	return toc[:ntracks]
 }
 
-func lengthSectors(d unsafe.Pointer) int32 {
+func lengthSectors(d unsafe.Pointer) int {
 	drive := (*C.cdrom_drive)(d)
-	return int32(drive.disc_toc[int(drive.tracks)].dwStartSector)
+	return int(drive.disc_toc[int(drive.tracks)].dwStartSector)
 }
 
 func opened(d unsafe.Pointer) bool {
@@ -159,7 +159,7 @@ func setParanoia(cd *AudioCD, flags ParanoiaFlags) {
 	C.paranoia_modeset(cd.paranoia, C.int(flags))
 }
 
-func overlapSet(cd *AudioCD, sectors int32) {
+func overlapSet(cd *AudioCD, sectors int) {
 	defer flushLogs(cd)
 	C.paranoia_overlapset(cd.paranoia, C.long(sectors))
 }
@@ -171,7 +171,7 @@ func setSpeed(cd *AudioCD, x int) error {
 	return err
 }
 
-func seekSector(cd *AudioCD, sector int32) error {
+func seekSector(cd *AudioCD, sector int) error {
 	defer flushLogs(cd)
 
 	res := int64(C.paranoia_seek(cd.paranoia, C.long(sector), C.int(io.SeekStart)))

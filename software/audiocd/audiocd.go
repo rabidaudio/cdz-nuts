@@ -87,9 +87,9 @@ const Channels = 2
 // It is distinct from a 33-byte channel data frame, which this package does
 // not concern itself with.
 //
-// For more information, see [Wikipdia].
+// For more information, see [Wikipedia].
 //
-// [Wikipdia]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Frames_and_timecode_frames
+// [Wikipedia]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Frames_and_timecode_frames
 const SectorsPerSecond = 75
 
 // SamplesPerFrame is the number of 16-bit audio samples per channel
@@ -106,13 +106,12 @@ const BytesPerSector = SampleRate * Channels * BytesPerSample / SectorsPerSecond
 // TrackPosition reports the offset information for tracks
 // from the table of contents.
 type TrackPosition struct {
-	Flags         uint8 // bitflag parameters
-	TrackNum      uint8 // index of the track, starting at 1
-	StartSector   int32 // address of the sector where the data starts
-	LengthSectors int32 // total number of sectors the track covers
+	Flags         byte // bitflag parameters
+	TrackNum      int  // index of the track, starting at 1
+	StartSector   int  // address of the sector where the data starts
+	LengthSectors int  // total number of sectors the track covers
 
 	// TODO: handle pregap?
-	// TODO: simplify int types
 }
 
 func (t TrackPosition) IsPreemphasisEnabled() bool {
@@ -130,7 +129,7 @@ func (t TrackPosition) IsAudio() bool {
 }
 
 // ContainsSector reports whether the given sector is within the track bounds
-func (t TrackPosition) ContainsSector(sector int32) bool {
+func (t TrackPosition) ContainsSector(sector int) bool {
 	return sector >= t.StartSector && sector < (t.StartSector+t.LengthSectors)
 }
 
@@ -230,7 +229,7 @@ func (cd *AudioCD) TrackCount() int {
 }
 
 // FirstAudioSector returns the sector index of the first track.
-func (cd *AudioCD) FirstAudioSector() int32 {
+func (cd *AudioCD) FirstAudioSector() int {
 	if !cd.IsOpen() {
 		return -1
 	}
@@ -251,7 +250,7 @@ func (cd *AudioCD) TOC() []TrackPosition {
 
 // LengthSectors returns the total number of sectors on the disk
 // with audio data. This is the sector after the last track.
-func (cd *AudioCD) LengthSectors() int32 {
+func (cd *AudioCD) LengthSectors() int {
 	if !cd.IsOpen() {
 		return -1
 	}
@@ -264,7 +263,7 @@ func (cd *AudioCD) LengthSectors() int32 {
 //
 // If the CD isn't open, returns -1. If the sector
 // is outside the track bounds, returns 0.
-func (cd *AudioCD) TrackAtSector(sector int32) int {
+func (cd *AudioCD) TrackAtSector(sector int) int {
 	if !cd.IsOpen() {
 		return -1
 	}
@@ -272,7 +271,7 @@ func (cd *AudioCD) TrackAtSector(sector int32) int {
 	toc := cd.TOC()
 	for _, t := range toc {
 		if t.ContainsSector(sector) {
-			return int(t.TrackNum)
+			return t.TrackNum
 		}
 	}
 	return 0
@@ -300,7 +299,7 @@ func (cd *AudioCD) SetParanoiaMode(flags ParanoiaFlags) {
 
 // ForceSearchOverlap sets the minimum number of sectors to search
 // when detecting overlap issues during data verification.
-func (cd *AudioCD) ForceSearchOverlap(sectors int32) error {
+func (cd *AudioCD) ForceSearchOverlap(sectors int) error {
 	if !cd.IsOpen() {
 		return os.ErrClosed
 	}
@@ -334,7 +333,7 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		newoffset = cd.trueOffset + offset
 	case io.SeekEnd:
-		end := int64(cd.LengthSectors() * BytesPerSector)
+		end := int64(cd.LengthSectors()) * BytesPerSector
 		newoffset = end + offset
 	default:
 		newoffset = offset
@@ -357,7 +356,7 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 	cd.trueOffset = cd.bufferedOffset
 	secoffset := newoffset - (newoffset % BytesPerSector)
 
-	err := seekSector(cd, int32(secoffset/BytesPerSector))
+	err := seekSector(cd, int(secoffset/BytesPerSector))
 	if err != nil {
 		cd.trueOffset = cd.bufferedOffset
 		return cd.trueOffset, err
@@ -375,7 +374,7 @@ func (cd *AudioCD) Seek(offset int64, whence int) (int64, error) {
 
 // SeekToSector seeks the cd to the specfied sector index.
 // This is useful for going to the start of a track.
-func (cd *AudioCD) SeekToSector(sector int32) (int64, error) {
+func (cd *AudioCD) SeekToSector(sector int) (int64, error) {
 	return cd.Seek(int64(sector)*BytesPerSector, io.SeekStart)
 }
 
@@ -406,7 +405,7 @@ func (cd *AudioCD) Read(p []byte) (n int, err error) {
 
 	// otherwise load data into the buffer
 	nsectors := (len(p) / BytesPerSector) + 1
-	err = cd.bufferSectors(nsectors)
+	err = cd.bufferSectors(int(nsectors))
 	if err != nil {
 		return 0, err
 	}
@@ -422,11 +421,11 @@ func (cd *AudioCD) readSectors(p []byte) (int64, error) {
 		return 0, nil
 	}
 
-	if int32(len(p))%BytesPerSector != 0 {
+	if int(len(p))%BytesPerSector != 0 {
 		return 0, fmt.Errorf("audiocd: must read complete sectors")
 	}
 
-	if int32(len(p)) > BytesPerSector {
+	if int(len(p)) > BytesPerSector {
 		// read one sector
 		n, err := cd.readSectors(p[:BytesPerSector])
 		if err != nil {
