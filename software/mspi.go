@@ -1,23 +1,21 @@
-package mock
-
-import "github.com/rabidaudio/cdz-nuts/spi"
+package main
 
 type spiI interface {
-	Query() (dr spi.DataRequest, err error)
+	Query() (dr DataRequest, err error)
 	Write(p []byte) (n int, err error)
 	Close() error
 }
 
-var _ spiI = (*spi.Spi)(nil)
+var _ spiI = (*Spi)(nil)
 
-type Spi struct {
+type MSpi struct {
 	RequestedBlock int32
 	BytesWritten   int
 }
 
 var _ spiI = (*Spi)(nil)
 
-func (m *Spi) Query() (dr spi.DataRequest, err error) {
+func (m *MSpi) Query() (dr DataRequest, err error) {
 	if m.RequestedBlock < 0 {
 		dr.Requested = false
 	} else {
@@ -29,11 +27,11 @@ func (m *Spi) Query() (dr spi.DataRequest, err error) {
 	return
 }
 
-func (m *Spi) Write(p []byte) (n int, err error) {
+func (m *MSpi) Write(p []byte) (n int, err error) {
 	m.BytesWritten += len(p)
 	return len(p), nil
 }
 
-func (m *Spi) Close() error {
+func (m *MSpi) Close() error {
 	return nil
 }

@@ -44,6 +44,20 @@ const (
 	ParanoiaNeverSkip ParanoiaFlags = pNeverSkip
 )
 
+// InterfaceType represents the driver implementation used
+// to access the drive.
+type InterfaceType int
+
+// DriveType represents the underlying driver/protocol used
+// by the drive.
+//
+// These definitions come from [linux/major.h], with
+// descriptions from [scan_devices.c].
+//
+// [linux/major.h]: https://github.com/torvalds/linux/blob/0e39a731820ad26533eb988cef27ad2506063b5b/include/uapi/linux/major.h#L27
+// [scan_devices.c]: https://github.com/opus47/cdparanoia/blob/bc6a412bca35b03413b88e7ba2cb78c911f1d8f3/interface/scan_devices.c#L177
+type DriveType int
+
 // FullSpeed can be passed to [SetSpeed] to run the drive at its fastest speed.
 const FullSpeed = -1
 
@@ -51,8 +65,9 @@ const FullSpeed = -1
 // CDs use at 44.1KHz.
 const SampleRate = 44100
 
-// BytesPerSample is 2 bytes, representing signed 16-bit samples.
-const BytesPerSample = 2
+// Samples are signed 16-bit
+const BitsPerSample = 16
+const BytesPerSample = BitsPerSample / 8
 
 // Channels is the number of audio channels in the data. All Redbook
 // audio CDs are stereo.

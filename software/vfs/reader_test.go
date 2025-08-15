@@ -9,13 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rabidaudio/cdz-nuts/cd"
 	"github.com/stretchr/testify/assert"
 )
 
-var WAVECD = cd.CD{
+var WAVECD = CD{
 	Name:   "The Tones",
-	Tracks: []cd.Track{},
+	Tracks: []Track{},
 }
 
 func must[T any](obj T, err error) T {
@@ -36,7 +35,7 @@ func init() {
 		must(file.ReadAt(sizeBytesRaw, 40))
 		must(file.Seek(0, io.SeekStart))
 		sizeBytes := binary.LittleEndian.Uint32(sizeBytesRaw)
-		WAVECD.Tracks = append(WAVECD.Tracks, cd.Track{
+		WAVECD.Tracks = append(WAVECD.Tracks, Track{
 			ReadSeeker:   file,
 			Filename:     entry.Name(),
 			LengthFrames: uint(sizeBytes) / 2 / 6,
