@@ -6,7 +6,7 @@ import (
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
-	"github.com/rabidaudio/cdz-nuts/audiocd"
+	"github.com/rabidaudio/audiocd"
 )
 
 var AudioCDFormat = beep.Format{
