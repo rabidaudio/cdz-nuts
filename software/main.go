@@ -11,8 +11,7 @@ import (
 )
 
 func main() {
-
-	cd := audiocd.AudioCD{Device: "/dev/sr0"}
+	cd := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
 	err := cd.Open()
 	if err != nil {
 		panic(err)
@@ -29,6 +28,8 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Printf("setup complete\n")
+
 	done := make(chan bool)
 	keys := make(chan term.Key)
 
@@ -44,7 +45,12 @@ func main() {
 			switch ev.Type {
 			case term.EventKey:
 				term.Sync()
-				keys <- ev.Key
+				key := ev.Key
+				keys <- key
+				if key == term.KeyEsc {
+					close(keys)
+					return
+				}
 			case term.EventError:
 				panic(ev.Err)
 			}
@@ -56,10 +62,14 @@ func main() {
 	})), Paused: false}
 
 	speaker.Play(ctrl)
+	fmt.Printf("playing\n")
 
 	for {
 		select {
-		case key := <-keys:
+		case key, ok := <-keys:
+			if !ok {
+				return
+			}
 			switch key {
 			case term.KeyEsc:
 				return

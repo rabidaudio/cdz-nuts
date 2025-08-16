@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/rabidaudio/audiocd"
@@ -60,6 +59,7 @@ func (pb *PreBuffer) Fill(hiwm, lowwm time.Duration, ready chan<- bool) error {
 
 	filling := true
 	sentReady := false
+	fmt.Printf("filling buffer\n")
 	for {
 		select {
 		case _, ok := <-pb.seekc:
@@ -68,8 +68,9 @@ func (pb *PreBuffer) Fill(hiwm, lowwm time.Duration, ready chan<- bool) error {
 				pb.buf.Truncate(0)
 				return nil
 			}
-			// TODO seek
+			// start reading again from new position on next loop
 			pb.buf.Truncate(0)
+			filling = true
 
 		default:
 			// keep filling
@@ -79,7 +80,7 @@ func (pb *PreBuffer) Fill(hiwm, lowwm time.Duration, ready chan<- bool) error {
 			}
 
 			if filling && int64(pb.buf.Len()) > hwmbytes {
-				log.Printf("high water mark reached, slowing drive\n")
+				fmt.Printf("high water mark reached, slowing drive\n")
 				filling = false
 				// slow down
 				pb.cd.SetSpeed(1)
@@ -88,7 +89,7 @@ func (pb *PreBuffer) Fill(hiwm, lowwm time.Duration, ready chan<- bool) error {
 					sentReady = true
 				}
 			} else if !filling && int64(pb.buf.Len()) < int64(lwmbytes) {
-				log.Printf("low water mark reached, speeding up\n")
+				fmt.Printf("low water mark reached, speeding up\n")
 				// speed up
 				filling = true
 				pb.cd.SetSpeed(audiocd.FullSpeed)
