@@ -16,6 +16,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer cd.Close()
 
 	s, err := NewStreamer(&cd)
 	if err != nil {
@@ -33,29 +34,28 @@ func main() {
 	done := make(chan bool)
 	keys := make(chan term.Key)
 
-	err = term.Init()
-	if err != nil {
-		panic(err)
-	}
-	defer term.Close()
-
-	go func() {
-		for {
-			ev := term.PollEvent()
-			switch ev.Type {
-			case term.EventKey:
-				term.Sync()
-				key := ev.Key
-				keys <- key
-				if key == term.KeyEsc {
-					close(keys)
-					return
-				}
-			case term.EventError:
-				panic(ev.Err)
-			}
-		}
-	}()
+	// err = term.Init()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer term.Close()
+	// go func() {
+	// 	for {
+	// 		ev := term.PollEvent()
+	// 		switch ev.Type {
+	// 		case term.EventKey:
+	// 			term.Sync()
+	// 			key := ev.Key
+	// 			keys <- key
+	// 			if key == term.KeyEsc {
+	// 				close(keys)
+	// 				return
+	// 			}
+	// 		case term.EventError:
+	// 			panic(ev.Err)
+	// 		}
+	// 	}
+	// }()
 
 	ctrl := &beep.Ctrl{Streamer: beep.Seq(s, beep.Callback(func() {
 		done <- true
