@@ -5,7 +5,6 @@ import (
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
-	"github.com/rabidaudio/audiocd"
 )
 
 func main() {
@@ -14,8 +13,13 @@ func main() {
 		panic(err)
 	}
 
-	cd := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
-	st, err := NewStreamer(&cd)
+	// cd := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
+	// st, err := NewStreamer(&cd)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	st, err := NewWaveStreamer("./testdata/sparkle girl.wav")
 	if err != nil {
 		panic(err)
 	}
