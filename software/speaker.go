@@ -29,15 +29,16 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 		}
 	}
 
-	pb := NewPreBuffer(cd)
-	ready := make(chan bool, 1)
+	pb := NewPreBuffer(cd, 10*time.Second)
+	// ready := make(chan bool, 1)
 	go func() {
-		err := pb.Fill(30*time.Second, 3*time.Second, ready)
+		err := pb.Pipe()
 		if err != nil {
 			panic(err)
 		}
 	}()
-	<-ready // wait until we're ready to play
+	// <-ready // wait until we're ready to play
+	pb.AwaitHighWaterMark()
 
 	return &cdStreamer{AudioCD: cd, pb: pb}, nil
 }
