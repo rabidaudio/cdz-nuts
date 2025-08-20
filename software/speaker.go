@@ -65,6 +65,9 @@ func (s *cdStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 		if err != nil {
 			return 0, false
 		}
+		if nn == 0 {
+			fmt.Printf("no data available in buffer!\n")
+		}
 	}
 	for i := range len(samples) {
 		samples[i][0], samples[i][1] = extractFrame(buf[i*f : (i+1)*f])
@@ -86,7 +89,7 @@ func (s *cdStreamer) Err() error {
 }
 
 func (s *cdStreamer) Len() int {
-	return int(s.AudioCD.LengthSectors()) * audiocd.SamplesPerFrame * audiocd.Channels
+	return int(s.AudioCD.LengthSectors()) * audiocd.SamplesPerSector
 }
 
 func (s *cdStreamer) Position() int {
@@ -100,7 +103,7 @@ func (s *cdStreamer) Seek(p int) error {
 }
 
 func (s *cdStreamer) CurrentTrack() int {
-	sector := s.offset / audiocd.SamplesPerFrame / audiocd.Channels
+	sector := s.offset / audiocd.SamplesPerSector
 	return s.AudioCD.TrackAtSector(sector)
 }
 
@@ -108,7 +111,7 @@ func (s *cdStreamer) Prev() {
 	t := s.CurrentTrack()
 	if t > 1 {
 		sec := s.AudioCD.TOC()[t-1].StartSector
-		s.Seek(sec * audiocd.Channels * audiocd.SamplesPerFrame)
+		s.Seek(sec * audiocd.SamplesPerSector)
 	}
 }
 
@@ -116,7 +119,7 @@ func (s *cdStreamer) Next() {
 	t := s.CurrentTrack()
 	if t <= s.AudioCD.TrackCount() {
 		sec := s.AudioCD.TOC()[t-1+1].StartSector
-		s.Seek(sec * audiocd.Channels * audiocd.SamplesPerFrame)
+		s.Seek(sec * audiocd.SamplesPerSector)
 	}
 }
 

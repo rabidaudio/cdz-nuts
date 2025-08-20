@@ -79,7 +79,7 @@ func (pb *PreBuffer) AwaitHighWaterMark() {
 
 func (pb *PreBuffer) Read(p []byte) (n int, err error) {
 	// fill the buffer
-	pb.emptyChanToBuf(len(p) / audiocd.BytesPerSector)
+	pb.emptyChanToBuf((len(p) / audiocd.BytesPerSector) + 1)
 	if pb.buf.Len() == 0 {
 		return 0, nil
 	}

@@ -6,7 +6,7 @@ require (
 	github.com/diskfs/go-diskfs v1.6.0
 	github.com/faiface/beep v1.1.0
 	github.com/nsf/termbox-go v1.1.1
-	github.com/rabidaudio/audiocd v0.0.0-20250815033711-90e7a4fea741
+	github.com/rabidaudio/audiocd v0.0.1
 	github.com/stianeikeland/go-rpio/v4 v4.6.0
 	github.com/stretchr/testify v1.10.0
 )
@@ -38,4 +38,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/rabidaudio/audiocd v0.0.0 => /Users/personal/projects/audiocd

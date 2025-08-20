@@ -57,6 +57,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rabidaudio/audiocd v0.0.0-20250815033711-90e7a4fea741 h1:F4BAtsHYzdNJpEFq++Y8+4m2Zj7efv+WEecfkDx0AT4=
 github.com/rabidaudio/audiocd v0.0.0-20250815033711-90e7a4fea741/go.mod h1:8ELVOOdOuR7rZC2xcJaOLKMOYVcE/A/rBeXfFo2v4/0=
+github.com/rabidaudio/audiocd v0.0.1 h1:XfZyk+UW37eax4kPbWLXlwgSyIgSIHJ0cbqtzrvtC8E=
+github.com/rabidaudio/audiocd v0.0.1/go.mod h1:8ELVOOdOuR7rZC2xcJaOLKMOYVcE/A/rBeXfFo2v4/0=
 github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af h1:Sp5TG9f7K39yfB+If0vjp97vuT74F72r8hfRpP8jLU0=
 github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/stianeikeland/go-rpio/v4 v4.6.0 h1:eAJgtw3jTtvn/CqwbC82ntcS+dtzUTgo5qlZKe677EY=
