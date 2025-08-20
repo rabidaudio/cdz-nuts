@@ -74,13 +74,14 @@ func (pb *PreBuffer) AwaitHighWaterMark() {
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-	pb.emptyChanToBuf(-1)
+	pb.emptyChanToBuf(cap(pb.cbuf) / 2)
 }
 
 func (pb *PreBuffer) Read(p []byte) (n int, err error) {
 	// fill the buffer
-	pb.emptyChanToBuf((len(p) / audiocd.BytesPerSector) + 1)
+	pb.emptyChanToBuf(1)
 	if pb.buf.Len() == 0 {
+		fmt.Printf("no data in buffer!\n")
 		return 0, nil
 	}
 	return pb.buf.Read(p) // read from the buffer
@@ -106,12 +107,13 @@ func (pb *PreBuffer) Pipe() error {
 
 	fmt.Printf("filling buffer\n")
 
+	step := 100
 	for {
 		totStart := GetCPU()
 		lockTime := int64(0)
 		readTime := int64(0)
 		chanTime := int64(0)
-		for range 1000 {
+		for range step {
 			p := make([]byte, pb.chunkSize)
 
 			lockStart := GetCPU()
@@ -134,8 +136,8 @@ func (pb *PreBuffer) Pipe() error {
 			chanTime += GetCPU() - chanStart
 		}
 		totEnd := GetCPU()
-		pb.showWithState("pipe\t% 7.f us\t1000 sectors to cbuf. avg lock=%v read=%v chan=%v", float32(totEnd-totStart)/1000,
-			float32(lockTime)/1000/1000, float32(readTime)/1000/1000, float32(chanTime)/1000/1000)
+		pb.showWithState("pipe\t% 7.f us\t%d sectors to cbuf. avg lock=%v read=%v chan=%v", float32(totEnd-totStart)/1000, step,
+			float32(lockTime)/1000/float32(step), float32(readTime)/1000/float32(step), float32(chanTime)/1000/float32(step))
 	}
 }
 
