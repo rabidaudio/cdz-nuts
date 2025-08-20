@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -39,6 +40,7 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 	}()
 	// <-ready // wait until we're ready to play
 	pb.AwaitHighWaterMark()
+	fmt.Printf("high water mark reached\n")
 
 	return &cdStreamer{AudioCD: cd, pb: pb}, nil
 }
@@ -47,7 +49,7 @@ func (s *cdStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	f := audiocd.Channels * audiocd.BytesPerSample
 	buf := make([]byte, len(samples)*f)
 	for n < len(buf) {
-		nn, err := s.AudioCD.Read(buf[n:])
+		nn, err := s.pb.Read(buf[n:])
 		s.err = err
 		n += nn
 		if err != nil {

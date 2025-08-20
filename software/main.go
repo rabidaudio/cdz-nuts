@@ -6,13 +6,17 @@ import (
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
-	term "github.com/nsf/termbox-go"
 	"github.com/rabidaudio/audiocd"
 )
 
 func main() {
+	err := speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
+	if err != nil {
+		panic(err)
+	}
+
 	cd := audiocd.AudioCD{LogMode: audiocd.LogModeStdErr}
-	err := cd.Open()
+	err = cd.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -24,15 +28,10 @@ func main() {
 	}
 	defer s.Close()
 
-	err = speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
-	if err != nil {
-		panic(err)
-	}
-
 	fmt.Printf("setup complete\n")
 
 	done := make(chan bool)
-	keys := make(chan term.Key)
+	// keys := make(chan term.Key)
 
 	// err = term.Init()
 	// if err != nil {
@@ -57,36 +56,42 @@ func main() {
 	// 	}
 	// }()
 
-	ctrl := &beep.Ctrl{Streamer: beep.Seq(s, beep.Callback(func() {
-		done <- true
-	})), Paused: false}
+	// ctrl := &beep.Ctrl{Streamer: beep.Seq(s, beep.Callback(func() {
+	// 	done <- true
+	// })), Paused: false}
 
-	speaker.Play(ctrl)
+	// speaker.Play(ctrl)
+
+	seq := beep.Seq(s, beep.Callback(func() {
+		done <- true
+	}))
+	speaker.Play(seq)
 	fmt.Printf("playing\n")
 
-	for {
-		select {
-		case key, ok := <-keys:
-			if !ok {
-				return
-			}
-			switch key {
-			case term.KeyEsc:
-				return
-			case term.KeySpace:
-				fmt.Printf("playpause\n")
-				ctrl.Paused = !ctrl.Paused
-			case term.KeyArrowLeft:
-				fmt.Printf("previous\n")
-				s.Prev()
-			case term.KeyArrowRight:
-				fmt.Printf("next\n")
-				s.Next()
-			}
-		case <-done:
-			return
-		}
-	}
+	<-done
+	// for {
+	// 	select {
+	// 	case key, ok := <-keys:
+	// 		if !ok {
+	// 			return
+	// 		}
+	// 		switch key {
+	// 		case term.KeyEsc:
+	// 			return
+	// 		case term.KeySpace:
+	// 			fmt.Printf("playpause\n")
+	// 			ctrl.Paused = !ctrl.Paused
+	// 		case term.KeyArrowLeft:
+	// 			fmt.Printf("previous\n")
+	// 			s.Prev()
+	// 		case term.KeyArrowRight:
+	// 			fmt.Printf("next\n")
+	// 			s.Next()
+	// 		}
+	// 	case <-done:
+	// 		return
+	// 	}
+	// }
 
 	// f, err := os.Open("vfs/testdata/chronictown.img")
 	// if err != nil {
