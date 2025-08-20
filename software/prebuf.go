@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rabidaudio/audiocd"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -175,6 +176,16 @@ func (pb *PreBuffer) Pipe() error {
 		totEnd := GetCPU()
 		pb.showWithState("pipe\t% 7.f us\t%d sectors to cbuf. avg lock=%v read=%v chan=%v", float32(totEnd-totStart)/1000, step,
 			float32(lockTime)/1000/float32(step), float32(readTime)/1000/float32(step), float32(chanTime)/1000/float32(step))
+
+		if len(pb.cbuf) > 2*cap(pb.cbuf)/3 {
+			if cd, ok := pb.src.(*audiocd.AudioCD); ok {
+				cd.SetSpeed(1)
+			}
+		} else if len(pb.cbuf) < cap(pb.cbuf)/3 {
+			if cd, ok := pb.src.(*audiocd.AudioCD); ok {
+				cd.SetSpeed(audiocd.FullSpeed)
+			}
+		}
 	}
 }
 

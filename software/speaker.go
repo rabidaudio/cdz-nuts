@@ -37,7 +37,7 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 
 	hwm := 30 * time.Second
 	hwmbytes := int64(hwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
-	pb := NewPreBuffer(cd, audiocd.BytesPerSector, hwmbytes)
+	pb := NewPreBuffer(cd, 512, hwmbytes)
 
 	// start pipe
 	go func() {

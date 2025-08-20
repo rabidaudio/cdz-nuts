@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	err := speaker.Init(AudioCDFormat.SampleRate, audiocd.SamplesPerSector)
+	err := speaker.Init(AudioCDFormat.SampleRate, 512)
 	if err != nil {
 		panic(err)
 	}
