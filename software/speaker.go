@@ -68,7 +68,7 @@ func (s *cdStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	}
 	end := GetCPU()
 
-	s.pb.showWithState("stream: took %v us to load %v ms of audio data", float32(end-start)/1000, len(samples)*audiocd.SampleRate/1000)
+	s.pb.showWithState("stream\t% 7.f us\t%3.1f ms of audio data streamed", float32(end-start)/1000, float32(len(samples))/audiocd.SampleRate*1000)
 	return n / f, true
 }
 

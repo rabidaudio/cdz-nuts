@@ -53,7 +53,7 @@ FOR:
 					return err
 				}
 				i += 1
-				if i >= limit {
+				if limit > 0 && i >= limit {
 					break FOR
 				}
 			}
@@ -62,7 +62,7 @@ FOR:
 		}
 	}
 	end := GetCPU()
-	pb.showWithState("read: loaded % 4d sectors (of % 4d) to buf in %v us", i, i+len(pb.cbuf), float32(end-start)/1000)
+	pb.showWithState("read\t% 7.f us\t% 4d sectors of % 4d from cbuf", float32(end-start)/1000, i, i+len(pb.cbuf))
 	return nil
 }
 
@@ -106,28 +106,36 @@ func (pb *PreBuffer) Pipe() error {
 
 	fmt.Printf("filling buffer\n")
 
-	i := 0
 	for {
-		p := make([]byte, pb.chunkSize)
+		totStart := GetCPU()
+		lockTime := int64(0)
+		readTime := int64(0)
+		chanTime := int64(0)
+		for range 1000 {
+			p := make([]byte, pb.chunkSize)
 
-		start := GetCPU()
-		pb.mtx.Lock()
-		if pb.closed {
+			lockStart := GetCPU()
+			pb.mtx.Lock()
+			lockTime += GetCPU() - lockStart
+			if pb.closed {
+				pb.mtx.Unlock()
+				return nil
+			}
+			readStart := GetCPU()
+			n, err := pb.src.Read(p)
+			readTime += GetCPU() - readStart
 			pb.mtx.Unlock()
-			return nil
-		}
-		n, err := pb.src.Read(p)
-		pb.mtx.Unlock()
-		end := GetCPU()
-		if err != nil {
-			return err
-		}
+			if err != nil {
+				return err
+			}
 
-		pb.cbuf <- p[:n] // load after unlock in case channel fills
-		i += 1
-		if i%1000 == 0 {
-			pb.showWithState("pipe: read %d sectors in %v us", n, float32(end-start)/1000)
+			chanStart := GetCPU()
+			pb.cbuf <- p[:n] // load after unlock in case channel fills
+			chanTime += GetCPU() - chanStart
 		}
+		totEnd := GetCPU()
+		pb.showWithState("pipe\t% 7.f us\t1000 sectors to cbuf. avg lock=%v read=%v chan=%v", float32(totEnd-totStart)/1000,
+			float32(lockTime)/1000/1000, float32(readTime)/1000/1000, float32(chanTime)/1000/1000)
 	}
 }
 
