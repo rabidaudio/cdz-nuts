@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/faiface/beep"
@@ -11,7 +13,14 @@ import (
 )
 
 func main() {
-	err := speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
+	f, err := os.Create("prebuf.prof")
+	if err != nil {
+		panic(err)
+	}
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
+	err = speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +49,7 @@ func main() {
 	speaker.Play(ctrl)
 
 	for {
-		fmt.Printf("playing %v | track %d\n", !ctrl.Paused, s.CurrentTrack())
+		fmt.Printf("playing %v | track %d\n", !ctrl.Paused, s.CurrentTrack()+1)
 		prompt := promptui.Prompt{
 			Label: "n=next, p=previous, enter=play/pause, q=quit",
 		}

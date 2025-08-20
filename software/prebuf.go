@@ -85,7 +85,7 @@ func (pb *PreBuffer) Seek(offset int64, whence int) (int64, error) {
 
 func (pb *PreBuffer) Pipe() error {
 	if pb.pipeRunning {
-		return fmt.Errorf("fill already running")
+		return fmt.Errorf("pipe already running")
 	}
 	pb.pipeRunning = true
 	defer func() { pb.pipeRunning = false }()
@@ -93,13 +93,13 @@ func (pb *PreBuffer) Pipe() error {
 	fmt.Printf("filling buffer\n")
 
 	for {
-		if pb.closed {
-			return nil
-		}
-
 		p := make([]byte, pb.chunkSize)
 
 		pb.mtx.Lock()
+		if pb.closed {
+			pb.mtx.Unlock()
+			return nil
+		}
 		n, err := pb.src.Read(p)
 		pb.mtx.Unlock()
 		if err != nil {
