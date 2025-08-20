@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
@@ -11,7 +10,7 @@ import (
 )
 
 func main() {
-	err := speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
+	err := speaker.Init(AudioCDFormat.SampleRate, audiocd.SamplesPerFrame)
 	if err != nil {
 		panic(err)
 	}

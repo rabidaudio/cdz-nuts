@@ -32,7 +32,10 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 		}
 	}
 
-	hwm := 10 * time.Second
+	cd.SetSpeed(audiocd.FullSpeed)
+	cd.SetParanoiaMode(audiocd.ParanoiaModeDisable)
+
+	hwm := 30 * time.Second
 	hwmbytes := int64(hwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
 	pb := NewPreBuffer(cd, audiocd.BytesPerSector, hwmbytes)
 
