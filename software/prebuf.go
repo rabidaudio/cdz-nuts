@@ -126,9 +126,10 @@ func (pb *PreBuffer) Pipe() error {
 			pb.mtx.Unlock()
 			return err
 		}
-		pb.cbuf <- p[n:]
 		pb.buffered += int64(n)
 		pb.mtx.Unlock()
+
+		pb.cbuf <- p[:n]
 
 		// if !sentReady && buffered >= hwmbytes {
 		// 	ready <- true // report that we are ready to begin reading
