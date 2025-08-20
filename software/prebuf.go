@@ -1,70 +1,77 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/rabidaudio/audiocd"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
 
 // TODO: generalize to any io.Reader interface
 type PreBuffer struct {
-	src         io.ReadSeeker
-	cbuf        chan []byte
-	buf         bytes.Buffer
+	src  io.ReadSeeker
+	cbuf chan []byte
+	// buf         bytes.Buffer
 	pipeRunning bool
 	closed      bool
 	mtx         sync.Mutex
 	hwm         int64
 	chunkSize   int
+
+	rb  []byte
+	bbs [][]byte
+	i   int
 }
 
 var _ io.ReadSeekCloser = (*PreBuffer)(nil)
 
 func NewPreBuffer(src io.ReadSeeker, chunkSize int, hwm int64) *PreBuffer {
+	c := hwm / int64(chunkSize)
 	pb := PreBuffer{
 		src:       src,
-		cbuf:      make(chan []byte, hwm/int64(chunkSize)),
+		cbuf:      make(chan []byte, c),
 		hwm:       hwm,
 		chunkSize: chunkSize,
+		bbs:       make([][]byte, c+1),
+	}
+	for i := range c {
+		pb.bbs[i] = make([]byte, chunkSize)
 	}
 	return &pb
 }
 
-func (pb *PreBuffer) emptyChanToBuf(limit int) error {
-	// take everything in the queue and load it into the buffer
-	i := 0
-	start := GetCPU()
-FOR:
-	for {
-		select {
-		case p, ok := <-pb.cbuf:
-			{
-				if !ok {
-					return nil
-				}
-				_, err := pb.buf.Write(p)
-				if err != nil {
-					return err
-				}
-				i += 1
-				if limit > 0 && i >= limit {
-					break FOR
-				}
-			}
-		default:
-			break FOR
-		}
-	}
-	end := GetCPU()
-	pb.showWithState("read\t% 7.f us\t% 4d sectors of % 4d from cbuf", float32(end-start)/1000, i, i+len(pb.cbuf))
-	return nil
-}
+// func (pb *PreBuffer) emptyChanToBuf(limit int) error {
+// 	// take everything in the queue and load it into the buffer
+// 	i := 0
+// 	start := GetCPU()
+// FOR:
+// 	for {
+// 		select {
+// 		case p, ok := <-pb.cbuf:
+// 			{
+// 				if !ok {
+// 					return nil
+// 				}
+// 				_, err := pb.buf.Write(p)
+// 				if err != nil {
+// 					return err
+// 				}
+// 				i += 1
+// 				if limit > 0 && i >= limit {
+// 					break FOR
+// 				}
+// 			}
+// 		default:
+// 			break FOR
+// 		}
+// 	}
+// 	end := GetCPU()
+// 	pb.showWithState("read\t% 7.f us\t% 4d sectors of % 4d from cbuf", float32(end-start)/1000, i, i+len(pb.cbuf))
+// 	return nil
+// }
 
 // Block until high water mark is reached, at which point we can begin reading
 func (pb *PreBuffer) AwaitHighWaterMark() {
@@ -74,17 +81,30 @@ func (pb *PreBuffer) AwaitHighWaterMark() {
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-	pb.emptyChanToBuf(cap(pb.cbuf) / 2)
+	// pb.emptyChanToBuf(cap(pb.cbuf) / 2)
 }
 
 func (pb *PreBuffer) Read(p []byte) (n int, err error) {
 	// fill the buffer
-	pb.emptyChanToBuf(1)
-	if pb.buf.Len() == 0 {
-		fmt.Printf("no data in buffer!\n")
-		return 0, nil
+
+	for len(pb.rb) < len(p) {
+		b, ok := <-pb.cbuf
+		if !ok {
+			return 0, io.EOF
+		}
+		pb.rb = append(pb.rb, b...)
 	}
-	return pb.buf.Read(p) // read from the buffer
+
+	n = copy(p, pb.rb)
+	pb.rb = pb.rb[n:]
+	return n, nil
+
+	// pb.emptyChanToBuf(1)
+	// if pb.buf.Len() == 0 {
+	// 	fmt.Printf("no data in buffer!\n")
+	// 	return 0, nil
+	// }
+	// return pb.buf.Read(p) // read from the buffer
 }
 
 func (pb *PreBuffer) Seek(offset int64, whence int) (int64, error) {
@@ -92,8 +112,20 @@ func (pb *PreBuffer) Seek(offset int64, whence int) (int64, error) {
 	pb.mtx.Lock()
 	defer pb.mtx.Unlock()
 
-	pb.emptyChanToBuf(-1)
-	pb.buf.Truncate(0)
+	// pb.emptyChanToBuf(-1)
+	// pb.buf.Truncate(0)
+FOR:
+	for {
+		select {
+		case _, ok := <-pb.cbuf:
+			if !ok {
+				return 0, nil
+			}
+		default:
+			break FOR
+		}
+	}
+	pb.rb = make([]byte, 0)
 
 	return pb.src.Seek(offset, whence)
 }
@@ -114,7 +146,12 @@ func (pb *PreBuffer) Pipe() error {
 		readTime := int64(0)
 		chanTime := int64(0)
 		for range step {
-			p := make([]byte, pb.chunkSize)
+			// p := make([]byte, pb.chunkSize)
+			p := pb.bbs[pb.i]
+			pb.i += 1
+			if pb.i >= len(pb.bbs) {
+				pb.i = 0
+			}
 
 			lockStart := GetCPU()
 			pb.mtx.Lock()
@@ -143,7 +180,7 @@ func (pb *PreBuffer) Pipe() error {
 
 func (pb *PreBuffer) showWithState(format string, args ...any) {
 	p := message.NewPrinter(language.English)
-	p.Printf("[chan: % 3d\tbuf: % 8d]\t%v\n", len(pb.cbuf), pb.buf.Len()/audiocd.BytesPerSector, p.Sprintf(format, args...))
+	p.Printf("[chan: % 3d\tbuf: % 8d]\t%v\n", len(pb.cbuf), len(pb.rb) /*pb.buf.Len()/audiocd.BytesPerSector*/, p.Sprintf(format, args...))
 }
 
 func GetCPU() int64 {
