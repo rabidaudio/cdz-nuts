@@ -52,6 +52,7 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 }
 
 func (s *cdStreamer) Stream(samples [][2]float64) (n int, ok bool) {
+	start := GetCPU()
 	f := audiocd.Channels * audiocd.BytesPerSample
 	buf := make([]byte, len(samples)*f)
 	for n < len(buf) {
@@ -65,6 +66,9 @@ func (s *cdStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 	for i := range len(samples) {
 		samples[i][0], samples[i][1] = extractFrame(buf[i*f : (i+1)*f])
 	}
+	end := GetCPU()
+
+	s.pb.showWithState("stream: took %v us to load %v ms of audio data", float32(end-start)/1000, len(samples)*audiocd.SampleRate/1000)
 	return n / f, true
 }
 

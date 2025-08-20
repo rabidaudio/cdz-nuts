@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"runtime/pprof"
 	"time"
 
 	"github.com/faiface/beep"
@@ -13,14 +11,7 @@ import (
 )
 
 func main() {
-	f, err := os.Create("prebuf.prof")
-	if err != nil {
-		panic(err)
-	}
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-
-	err = speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
+	err := speaker.Init(AudioCDFormat.SampleRate, AudioCDFormat.SampleRate.N(time.Second/10))
 	if err != nil {
 		panic(err)
 	}
