@@ -3,32 +3,31 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"sync"
 	"time"
-
-	"github.com/rabidaudio/audiocd"
 )
 
 // TODO: generalize to any io.Reader interface
 type PreBuffer struct {
-	cd          *audiocd.AudioCD
+	src         io.ReadSeeker
 	cbuf        chan []byte
 	buf         bytes.Buffer
-	fillRunning bool
+	pipeRunning bool
 	closed      bool
 	mtx         sync.Mutex
-	hwm         time.Duration
-	buffered    int64
-	// seeked      bool
+	hwm         int64
+	chunkSize   int
 }
 
-func NewPreBuffer(cd *audiocd.AudioCD, hwm time.Duration) *PreBuffer {
-	hwmsectors := int(hwm.Seconds() * audiocd.SectorsPerSecond)
+var _ io.ReadSeekCloser = (*PreBuffer)(nil)
 
+func NewPreBuffer(src io.ReadSeeker, chunkSize int, hwm int64) *PreBuffer {
 	pb := PreBuffer{
-		cd:   cd,
-		cbuf: make(chan []byte, hwmsectors),
-		hwm:  hwm,
+		src:       src,
+		cbuf:      make(chan []byte, hwm/int64(chunkSize)),
+		hwm:       hwm,
+		chunkSize: chunkSize,
 	}
 	return &pb
 }
@@ -55,17 +54,13 @@ func (pb *PreBuffer) emptyChanToBuf() error {
 
 // Block until high water mark is reached, at which point we can begin reading
 func (pb *PreBuffer) AwaitHighWaterMark() {
-	hwmbytes := int64(pb.hwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
 	for {
-		pb.mtx.Lock()
-		b := pb.buffered
-		pb.mtx.Unlock()
-		if b >= hwmbytes {
-			return
+		if len(pb.cbuf) >= cap(pb.cbuf) {
+			break
 		}
-		pb.emptyChanToBuf()
 		time.Sleep(1 * time.Millisecond)
 	}
+	pb.emptyChanToBuf()
 }
 
 func (pb *PreBuffer) Read(p []byte) (n int, err error) {
@@ -78,184 +73,47 @@ func (pb *PreBuffer) Read(p []byte) (n int, err error) {
 }
 
 func (pb *PreBuffer) Seek(offset int64, whence int) (int64, error) {
+	// pause pipe, clear buffer, and seek
 	pb.mtx.Lock()
 	defer pb.mtx.Unlock()
 
-	// clear buffer
 	pb.emptyChanToBuf()
 	pb.buf.Truncate(0)
-	pb.buffered = 0
 
-	// pb.seeked = true // notify the other thread that we've seeked
-	return pb.cd.Seek(offset, whence)
+	return pb.src.Seek(offset, whence)
 }
 
 func (pb *PreBuffer) Pipe() error {
-	if pb.fillRunning {
+	if pb.pipeRunning {
 		return fmt.Errorf("fill already running")
 	}
-	pb.fillRunning = true
-	defer func() { pb.fillRunning = false }()
+	pb.pipeRunning = true
+	defer func() { pb.pipeRunning = false }()
 
-	// hwmbytes := int64(pb.hwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
-	// lwmbytes := int64(lowwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
-
-	// filling := true
-	// sentReady := false
 	fmt.Printf("filling buffer\n")
 
-	// buffered := int64(0)
 	for {
-		pb.mtx.Lock()
-
 		if pb.closed {
-			pb.mtx.Unlock()
 			return nil
 		}
 
-		// if pb.seeked {
-		// 	pb.seeked = false
-		// 	buffered = 0
-		// 	// filling = true
-		// 	continue
-		// }
+		p := make([]byte, pb.chunkSize)
 
-		p := make([]byte, audiocd.BytesPerSector)
-		n, err := pb.cd.Read(p)
+		pb.mtx.Lock()
+		n, err := pb.src.Read(p)
+		pb.mtx.Unlock()
 		if err != nil {
-			pb.mtx.Unlock()
 			return err
 		}
-		pb.buffered += int64(n)
-		pb.mtx.Unlock()
 
-		pb.cbuf <- p[:n]
-
-		// if !sentReady && buffered >= hwmbytes {
-		// 	ready <- true // report that we are ready to begin reading
-		// 	sentReady = true
-		// }
-
-		// TODO: adjust disk speed as needed
-
-		// if filling && buffered > hwmbytes {
-		// 	fmt.Printf("high water mark reached, slowing drive\n")
-		// 	filling = false
-		// 	// slow down
-		// 	// pb.cd.SetSpeed(2)
-		// 	if !sentReady {
-		// 		ready <- true // report that we are ready to begin reading
-		// 		sentReady = true
-		// 	}
-		// } else if !filling && buffered < lwmbytes {
-		// 	fmt.Printf("low water mark reached, speeding up\n")
-		// 	// speed up
-		// 	filling = true
-		// 	// pb.cd.SetSpeed(audiocd.FullSpeed)
-		// }
+		pb.cbuf <- p[:n] // load after unlock in case channel fills
 	}
 }
 
-// <-seek
-// 		 wipe buffer
-// <- close
-// 		cleanup
-// else
-//		if fillingState
-//			read fast
-//			if bufferedSize > highWM  fillingState = false
-//		else
-//			read slow
-//			if bufferedSize < lowWM 	fillingState = true
-
-// func (pb *PreBuffer) Fill(hiwm, lowwm time.Duration, ready chan<- bool) error {
-// 	if pb.fillRunning {
-// 		return fmt.Errorf("fill already running")
-// 	}
-// 	pb.fillRunning = true
-// 	defer func() { pb.fillRunning = false }()
-
-// 	hwmbytes := int64(hiwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
-// 	lwmbytes := int64(lowwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
-
-// 	filling := true
-// 	sentReady := false
-// 	i := 0
-// 	fmt.Printf("filling buffer\n")
-// 	for {
-// 		pb.mtx.Lock()
-
-// 		if pb.closed {
-// 			// closed
-// 			pb.buf.Truncate(0)
-// 			pb.mtx.Unlock()
-// 			return nil
-// 		}
-
-// 		if pb.seeked {
-// 			pb.seeked = false
-// 			// start reading again from new position on next loop
-// 			pb.buf.Truncate(0)
-// 			filling = true
-// 			continue
-// 		}
-
-// 		// keep filling
-// 		err := pb.fillBuffer()
-// 		if err != nil {
-// 			return err
-// 		}
-// 		pb.mtx.Unlock()
-
-// 		// TODO: better way?
-// 		if int64(pb.buf.Len()) > hwmbytes {
-// 			time.Sleep(1 * time.Second)
-// 		}
-
-// 		if filling && int64(pb.buf.Len()) > hwmbytes {
-// 			fmt.Printf("high water mark reached, slowing drive\n")
-// 			filling = false
-// 			// slow down
-// 			pb.cd.SetSpeed(2)
-// 			if !sentReady {
-// 				ready <- true // report that we are ready to begin reading
-// 				sentReady = true
-// 			}
-// 		} else if !filling && int64(pb.buf.Len()) < int64(lwmbytes) {
-// 			fmt.Printf("low water mark reached, speeding up\n")
-// 			// speed up
-// 			filling = true
-// 			pb.cd.SetSpeed(audiocd.FullSpeed)
-// 		}
-// 	}
-// }
-
-func (pb *PreBuffer) Close() {
+func (pb *PreBuffer) Close() error {
 	pb.mtx.Lock()
 	defer pb.mtx.Unlock()
 
 	pb.closed = true // interrupt fill
+	return nil
 }
-
-// func (pb *PreBuffer) fillBuffer() error {
-// 	if pb.sb == nil {
-// 		pb.sb = make([]byte, audiocd.BytesPerSector)
-// 	}
-// 	n, err := pb.cd.Read(pb.sb)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	pb.buf.Write(pb.sb[:n])
-// 	return nil
-// }
-
-// func (s *cdStreamer) SeekTo(tracknum int, byteoffset int) error {
-// 	track := s.cd.TOC()[tracknum-1]
-// 	end := track.LengthSectors * audiocd.BytesPerSector
-// 	if byteoffset < 0 || byteoffset >= end {
-// 		return fmt.Errorf("seekto: %d out of bounds (track length %d bytes)", byteoffset, end)
-// 	}
-// 	dest := int64(track.StartSector*audiocd.BytesPerSector + byteoffset)
-// 	_, err := s.Seek(dest, io.SeekStart)
-// 	return err
-// }

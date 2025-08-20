@@ -12,12 +12,14 @@ require (
 )
 
 require (
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/elliotwutingfeng/asciiset v0.0.0-20230602022725-51bbb787efab // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hajimehoshi/oto v0.7.1 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/manifoldco/promptui v0.9.0 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

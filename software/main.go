@@ -6,6 +6,7 @@ import (
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
+	"github.com/manifoldco/promptui"
 	"github.com/rabidaudio/audiocd"
 )
 
@@ -31,67 +32,35 @@ func main() {
 	fmt.Printf("setup complete\n")
 
 	done := make(chan bool)
-	// keys := make(chan term.Key)
 
-	// err = term.Init()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer term.Close()
-	// go func() {
-	// 	for {
-	// 		ev := term.PollEvent()
-	// 		switch ev.Type {
-	// 		case term.EventKey:
-	// 			term.Sync()
-	// 			key := ev.Key
-	// 			keys <- key
-	// 			if key == term.KeyEsc {
-	// 				close(keys)
-	// 				return
-	// 			}
-	// 		case term.EventError:
-	// 			panic(ev.Err)
-	// 		}
-	// 	}
-	// }()
-
-	// ctrl := &beep.Ctrl{Streamer: beep.Seq(s, beep.Callback(func() {
-	// 	done <- true
-	// })), Paused: false}
-
-	// speaker.Play(ctrl)
-
-	seq := beep.Seq(s, beep.Callback(func() {
+	ctrl := &beep.Ctrl{Streamer: beep.Seq(s, beep.Callback(func() {
 		done <- true
-	}))
-	speaker.Play(seq)
-	fmt.Printf("playing\n")
+	})), Paused: false}
 
-	<-done
-	// for {
-	// 	select {
-	// 	case key, ok := <-keys:
-	// 		if !ok {
-	// 			return
-	// 		}
-	// 		switch key {
-	// 		case term.KeyEsc:
-	// 			return
-	// 		case term.KeySpace:
-	// 			fmt.Printf("playpause\n")
-	// 			ctrl.Paused = !ctrl.Paused
-	// 		case term.KeyArrowLeft:
-	// 			fmt.Printf("previous\n")
-	// 			s.Prev()
-	// 		case term.KeyArrowRight:
-	// 			fmt.Printf("next\n")
-	// 			s.Next()
-	// 		}
-	// 	case <-done:
-	// 		return
-	// 	}
-	// }
+	speaker.Play(ctrl)
+
+	for {
+		fmt.Printf("playing %v | track %d\n", !ctrl.Paused, s.CurrentTrack())
+		prompt := promptui.Prompt{
+			Label: "n=next, p=previous, enter=play/pause, q=quit",
+		}
+
+		result, err := prompt.Run()
+		if err != nil {
+			panic(err)
+		}
+
+		switch result {
+		case "":
+			ctrl.Paused = !ctrl.Paused
+		case "p":
+			s.Prev()
+		case "n":
+			s.Next()
+		case "q":
+			return
+		}
+	}
 
 	// f, err := os.Open("vfs/testdata/chronictown.img")
 	// if err != nil {

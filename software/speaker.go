@@ -15,6 +15,8 @@ var AudioCDFormat = beep.Format{
 	Precision:   audiocd.BytesPerSample,
 }
 
+// TODO: adjust disk speed as needed
+
 type cdStreamer struct {
 	*audiocd.AudioCD
 	err    error
@@ -30,15 +32,19 @@ func NewStreamer(cd *audiocd.AudioCD) (*cdStreamer, error) {
 		}
 	}
 
-	pb := NewPreBuffer(cd, 10*time.Second)
-	// ready := make(chan bool, 1)
+	hwm := 10 * time.Second
+	hwmbytes := int64(hwm.Seconds()*audiocd.SampleRate) * audiocd.Channels * audiocd.BytesPerSample
+	pb := NewPreBuffer(cd, audiocd.BytesPerSector, hwmbytes)
+
+	// start pipe
 	go func() {
 		err := pb.Pipe()
 		if err != nil {
 			panic(err)
 		}
 	}()
-	// <-ready // wait until we're ready to play
+
+	// wait until we're ready to play
 	pb.AwaitHighWaterMark()
 	fmt.Printf("high water mark reached\n")
 
@@ -114,3 +120,14 @@ func (s *cdStreamer) Close() error {
 }
 
 var _ beep.StreamSeekCloser = (*cdStreamer)(nil)
+
+func (s *cdStreamer) SeekTo(tracknum int, byteoffset int) error {
+	track := s.AudioCD.TOC()[tracknum-1]
+	end := track.LengthSectors * audiocd.BytesPerSector
+	if byteoffset < 0 || byteoffset >= end {
+		return fmt.Errorf("seekto: %d out of bounds (track length %d bytes)", byteoffset, end)
+	}
+	destBytes := track.StartSector*audiocd.BytesPerSector + byteoffset
+	destSamples := destBytes / audiocd.Channels / audiocd.BytesPerSample
+	return s.Seek(destSamples)
+}
