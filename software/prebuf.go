@@ -77,7 +77,7 @@ func NewPreBuffer(src io.ReadSeeker, chunkSize int, hwm int64) *PreBuffer {
 // Block until high water mark is reached, at which point we can begin reading
 func (pb *PreBuffer) AwaitHighWaterMark() {
 	for {
-		if len(pb.cbuf) >= cap(pb.cbuf) {
+		if len(pb.cbuf) >= cap(pb.cbuf)/2 {
 			break
 		}
 		time.Sleep(1 * time.Millisecond)
@@ -183,7 +183,7 @@ func (pb *PreBuffer) Pipe() error {
 			}
 		} else if len(pb.cbuf) < cap(pb.cbuf)/3 {
 			if cd, ok := pb.src.(*audiocd.AudioCD); ok {
-				cd.SetSpeed(audiocd.FullSpeed)
+				cd.SetSpeed(2)
 			}
 		}
 	}

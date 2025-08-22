@@ -10,6 +10,8 @@ import (
 )
 
 func main() {
+	// err := syscall.Setpriority(syscall.PRIO_PROCESS, os.Process.Pid, -19)
+
 	err := speaker.Init(AudioCDFormat.SampleRate, 512)
 	if err != nil {
 		panic(err)
